@@ -1,0 +1,32 @@
+# Database
+database.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# Environment variables / Bot tokens
+.env
+.env.local
+*.env
+config.json
+secrets.json
+
+# Logs
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
