@@ -1,9 +1,13 @@
 import logging
+import os
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger("recorder")
 
-BASE_URL = "http://localhost:6397"
+BASE_URL = os.getenv("LMU_URL", "http://localhost:6397")
 TIMEOUT = 5
 
 
@@ -60,3 +64,11 @@ class LMU:
     def get_weather(self):
         """Get weather conditions."""
         return self.get("rest/sessions/weather")
+    
+    def get_grip_level(self):
+        """Get current grip level."""
+        data = self.get("rest/sessions")
+        print(data.get("SESSSET_pract1_realroad_init"))
+        if data and "SESSSET_pract1_realroad_init" in data:
+            return data["SESSSET_pract1_realroad_init"].get("currentValue")
+        return None

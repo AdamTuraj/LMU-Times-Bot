@@ -85,6 +85,10 @@ def get_client_id(req):
         return forwarded.split(",")[0].strip()
 
     auth = req.headers.get("Authorization", "")
+
+    if not auth:
+        return req.headers.get("X-Real-IP", "unknown")
+
     if auth.startswith("Bearer "):
         return f"token:{auth[7:23]}"
 
@@ -93,6 +97,8 @@ def get_client_id(req):
 
 def get_token(req):
     auth = req.headers.get("Authorization", "")
+    if not auth:
+        return None
     if auth.startswith("Bearer "):
         return auth[7:]
     return None

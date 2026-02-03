@@ -1,33 +1,32 @@
 from enum import Enum
 
 
-class Tracks(Enum):
+class Tracks(str, Enum):
     """Available racing tracks."""
 
-    PORTIMAOWEC = "Portimao"
-    IMOLAWEC = "Imola"
-    MONZAWEC = "Monza"
-    MONZAWEC_GRANDE = "Monza Curva Grande"
-    INTERLAGOSWEC = "Interlagos"
-    BAHRAINWEC = "Bahrain"
-    BAHRAINWEC_ENDCE = "Bahrain Endurance"
-    BAHRAINWEC_OUTER = "Bahrain Outer"
-    BAHRAINWEC_PADDOCK = "Bahrain Paddock"
-    SPAWEC = "Spa"
-    SPAWEC_ENDCE = "Spa Endurance"
-    LEMANSWEC = "Le Mans"
-    LEMANSWEC_MULSANNE = "Le Mans Mulsanne"
-    COTAWEC_NATIONAL = "COTA National"
-    COTAWEC = "COTA"
-    FUJIWEC = "Fuji"
-    FUJIWEC_CL = "Fuji Classic"
-    QATARWEC_SHORT = "Lusail Short"
-    QATARWEC = "Qatar"
-    PAULRICARDELMS = "Paul Ricard"
-    SEBRINGWEC = "Sebring"
-    SEBRINGWEC_SCHOOL = "Sebring School"
-    LIVERYSHOWROOM = "Livery Showroom"
-    SILVERSTONEELMS = "Silverstone"
+    PORTIMAO = "PORTIMAOWEC"
+    IMOLA = "IMOLAWEC"
+    MONZA = "MONZAWEC"
+    MONZA_CURVA_GRANDE = "MONZAWEC_GRANDE"
+    INTERLAGOS = "INTERLAGOSWEC"
+    BAHRAIN = "BAHRAINWEC"
+    BAHRAIN_ENDURANCE = "BAHRAINWEC_ENDCE"
+    BAHRAIN_OUTER = "BAHRAINWEC_OUTER"
+    BAHRAIN_PADDOCK = "BAHRAINWEC_PADDOCK"
+    SPA = "SPAWEC"
+    SPA_ENDURANCE = "SPAWEC_ENDCE"
+    LE_MANS = "LEMANSWEC"
+    LE_MANS_MULSANNE = "LEMANSWEC_MULSANNE"
+    COTA_NATIONAL = "COTAWEC_NATIONAL"
+    COTA = "COTAWEC"
+    FUJI = "FUJIWEC"
+    FUJI_CLASSIC = "FUJIWEC_CL"
+    LUSAIL_SHORT = "QATARWEC_SHORT"
+    QATAR = "QATARWEC"
+    PAUL_RICARD = "PAULRICARDELMS"
+    SEBRING = "SEBRINGWEC"
+    SEBRING_SCHOOL = "SEBRINGWEC_SCHOOL"
+    SILVERSTONE = "SILVERSTONEELMS"
 
 
 class Classes(Enum):
@@ -55,3 +54,14 @@ class WeatherConditions(Enum):
     OVERCAST_RAIN = 8
     OVERCAST_HEAVY_RAIN = 9
     OVERCAST_STORM = 10
+
+
+class GripLevel(Enum):
+    """Track grip level settings."""
+
+    SATURATED_GRIP = 5
+    MEDIUM_GRIP = 4
+    LOW_GRIP = 3
+    HEAVY_GRIP = 2
+    NATURALLY_PROGRESSING = 1
+    GREEN = 0

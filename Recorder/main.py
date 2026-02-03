@@ -1,37 +1,44 @@
+import ctypes
 import json
 import logging
 import secrets
 import sys
 import threading
 import webbrowser
+import winsound
+import os
 from pathlib import Path
 
 import keyring
+from dotenv import load_dotenv
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QApplication,
     QLabel,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPushButton,
+    QSystemTrayIcon,
     QVBoxLayout,
     QWidget,
 )
 
-from Backend import Backend
-from LMU import LMU
-from TokenServer import LocalCallbackServer
+from utils.Backend import Backend
+from utils.LMU import LMU
+from utils.TokenServer import LocalCallbackServer
 
-# Constants
-APP_NAME = "LMU Times Recorder"
-SERVICE_NAME = "LMUTimesRecorder"
+load_dotenv()
+
+APP_NAME = os.getenv("APP_NAME", "LMU Times Recorder")
+SERVICE_NAME = APP_NAME.replace(" ", "")
 KEYRING_USERNAME = "user_token"
 OAUTH_CALLBACK_PORT = 54783
 POLL_INTERVAL = 5.0
 TEMP_TOLERANCE = 1.0
 RAIN_TOLERANCE = 5.0
 
-CAR_CLASSES = {"LMGT3": 0, "LMGTE": 1, "LMP3": 2, "LMP2": 3, "ELMS2025": 4, "Hyper": 5}
+CAR_CLASSES = {"GT3": 0, "GTE": 1, "LMP3": 2, "LMP2": 3, "LMP2_ELMS": 4, "Hyper": 5}
 CAR_CLASS_NAMES = {v: k for k, v in CAR_CLASSES.items()}
 
 WEATHER_CONDITIONS = {
@@ -41,6 +48,24 @@ WEATHER_CONDITIONS = {
     10: "Overcast & Storm",
 }
 
+GRIP_LEVELS = {
+    5: "Saturated Grip",
+    4: "Medium Grip",
+    3: "Low Grip",
+    2: "Heavy Grip",
+    1: "Naturally Progressing",
+    0: "Green",
+}
+
+def get_log_path() -> Path:
+    base = os.environ.get("LOCALAPPDATA")
+    if not base:
+        base = str(Path.home() / "AppData" / "Local")
+
+    log_dir = Path(base) / APP_NAME / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    return log_dir / "app.log"
 
 def setup_logging():
     """Set up logging with file and console handlers."""
@@ -56,9 +81,8 @@ def setup_logging():
     console.setFormatter(fmt)
     log.addHandler(console)
 
-    log_dir = Path(__file__).parent / "logs"
-    log_dir.mkdir(exist_ok=True)
-    file_handler = logging.FileHandler(log_dir / "recorder.log", encoding="utf-8")
+    log_path = get_log_path()
+    file_handler = logging.FileHandler(log_path, encoding="utf-8")
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(fmt)
     log.addHandler(file_handler)
@@ -67,6 +91,50 @@ def setup_logging():
 
 
 logger = setup_logging()
+
+def flash_window(hwnd):
+    """Flash the taskbar button for a window"""
+    FLASHW_ALL = 0x00000003
+    FLASHW_TIMERNOFG = 0x0000000C
+
+    class FLASHWINFO(ctypes.Structure):
+        _fields_ = [
+            ("cbSize", ctypes.c_uint),
+            ("hwnd", ctypes.c_void_p),
+            ("dwFlags", ctypes.c_uint),
+            ("uCount", ctypes.c_uint),
+            ("dwTimeout", ctypes.c_uint),
+        ]
+
+    info = FLASHWINFO()
+    info.cbSize = ctypes.sizeof(FLASHWINFO)
+    info.hwnd = int(hwnd)
+    info.dwFlags = FLASHW_ALL | FLASHW_TIMERNOFG
+    info.uCount = 0
+    info.dwTimeout = 0
+    ctypes.windll.user32.FlashWindowEx(ctypes.byref(info))
+
+
+def play_info_sound():
+    """Play the Windows information sound."""
+    winsound.MessageBeep(winsound.MB_ICONASTERISK)
+
+
+def play_error_sound():
+    """Play the Windows error sound."""
+    winsound.MessageBeep(winsound.MB_ICONHAND)
+
+
+def hide_to_tray(window, tray_icon):
+    """Hide the window to the system tray."""
+    window.hide()
+    if tray_icon and tray_icon.isVisible():
+        tray_icon.showMessage(
+            APP_NAME,
+            "Application minimized to tray",
+            QSystemTrayIcon.MessageIcon.Information,
+            2000
+        )
 
 
 def get_condition_name(condition):
@@ -153,6 +221,28 @@ class MainWindow(QMainWindow):
                 delete_token()
                 self.token = None
 
+        # Setup system tray
+        self.tray_icon = QSystemTrayIcon(self)
+        icon = self.windowIcon()
+        if icon.isNull():
+            icon = self.style().standardIcon(self.style().StandardPixmap.SP_ComputerIcon)
+        self.tray_icon.setIcon(icon)
+        self.tray_icon.setToolTip(APP_NAME)
+        
+        # Create tray menu
+        tray_menu = QMenu()
+        show_action = tray_menu.addAction("Show")
+        show_action.triggered.connect(self.show_from_tray)
+        hide_action = tray_menu.addAction("Hide to Tray")
+        hide_action.triggered.connect(self.hide_to_tray)
+        tray_menu.addSeparator()
+        quit_action = tray_menu.addAction("Quit")
+        quit_action.triggered.connect(QApplication.quit)
+        
+        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.activated.connect(self.on_tray_activated)
+        self.tray_icon.show()
+
         # Setup UI
         self.layout = QVBoxLayout()
         self.setup_ui()
@@ -202,6 +292,31 @@ class MainWindow(QMainWindow):
         """Update status label."""
         if hasattr(self, "status_label"):
             self.status_label.setText(f"Logged in as {self.username}\n{message}")
+
+    # System Tray functions
+    def hide_to_tray(self):
+        """Hide window to system tray."""
+        hide_to_tray(self, self.tray_icon)
+
+    def show_from_tray(self):
+        """Show window from system tray."""
+        self.show()
+        self.raise_()
+        self.activateWindow()
+
+    def on_tray_activated(self, reason):
+        """Handle tray icon activation."""
+        if reason == QSystemTrayIcon.ActivationReason.Trigger:
+            self.show_from_tray()
+
+    def changeEvent(self, event):
+        """Handle window state changes."""
+        if event.type() == event.Type.WindowStateChange:
+            if self.isMinimized():
+                event.ignore()
+                self.hide_to_tray()
+                return
+        super().changeEvent(event)
 
     # OAuth
     def open_oauth(self):
@@ -292,6 +407,16 @@ class MainWindow(QMainWindow):
         """Start thread to watch for session end."""
         threading.Thread(target=self.wait_for_session_end, daemon=True).start()
 
+    def on_validation_error(self, message):
+        """Handle validation error."""
+        self.update_status(message)
+        logger.info("Validation error: %s", message)
+
+        self.show_from_tray()
+        flash_window(self.winId())
+        play_error_sound()
+        self.start_end_watcher()
+
     def launch_session(self):
         """Handle session start and validate conditions."""
         logger.info("Launching session handler")
@@ -306,19 +431,15 @@ class MainWindow(QMainWindow):
             threading.Event().wait(POLL_INTERVAL)
 
         if not standings:
-            self.update_status("Could not get standings. Waiting for session end...")
-            self.start_end_watcher()
-            return
+            return self.on_validation_error("Failed to load standings. Waiting for session end...")
 
         if len(standings) > 1:
-            self.update_status("Multiple drivers detected. Only one driver allowed.")
-            return
+            return self.on_validation_error("Multiple drivers detected. Only one driver allowed.")
 
         # Get session state
         session = self.lmu.get_session_state()
         if not session:
-            logger.error("Failed to get session state")
-            return
+            return self.on_validation_error("Error reading session state. Waiting for session end...")  
 
         # Get car info
         car_info = json.loads(session["loadingStatus"]["loadingData"])["selectedCar"]["classes"]
@@ -330,19 +451,14 @@ class MainWindow(QMainWindow):
         # Check practice session
         game_session = session.get("state", {}).get("gameSession")
         if game_session != "PRACTICE1":
-            self.update_status("Not in practice. Waiting for session end...")
-            self.start_end_watcher()
-            return
-
+            return self.on_validation_error("Not in practice. Waiting for session end...")
+        
         # Get leaderboard info
         self.track = session["loadingStatus"]["track"]["sceneDesc"]
         lb_info = self.backend.get_lb_info(self.track)
 
         if not lb_info:
-            self.update_status("No leaderboard for this track. Waiting for session end...")
-            self.start_end_watcher()
-            return
-
+            return self.on_validation_error("No leaderboard for this track. Waiting for session end...")
         # Check car class
         classes = lb_info.get("classes", [])
         car_class = standings[0].get("carClass", "")
@@ -350,33 +466,42 @@ class MainWindow(QMainWindow):
 
         if class_num is None or class_num not in classes:
             allowed = [CAR_CLASS_NAMES.get(c, "?") for c in classes]
-            self.update_status(f"Wrong class! Yours: {car_class}\nAllowed: {', '.join(allowed)}")
-            self.start_end_watcher()
-            return
+            return self.on_validation_error(f"Wrong class! Yours: {car_class}\nAllowed: {', '.join(allowed)}")
 
         # Check weather
         weather = self.get_weather()
         if not weather:
-            self.update_status("Error reading weather. Waiting for session end...")
-            self.start_end_watcher()
-            return
+            return self.on_validation_error("Error reading weather. Waiting for session end...")
 
         matches, bad_idx = weather_matches(weather, lb_info["weather"])
         if not matches:
             req = lb_info["weather"]
             bad = weather[bad_idx] if bad_idx is not None else weather[0]
-            self.update_status(
+
+            return self.on_validation_error(
                 f"Weather incorrect!\n"
                 f"Required: {get_condition_name(req.get('condition'))}, "
                 f"{req.get('temperature')}°C, {req.get('rain')}%\n"
                 f"Slot {(bad_idx or 0) + 1}: {get_condition_name(bad['condition'])}, "
                 f"{bad['temperature']}°C, {bad['rain']}%"
             )
-            self.start_end_watcher()
-            return
+        
+        grip_level = self.lmu.get_grip_level()
+        required_grip = lb_info["weather"].get("grip_level")
+
+        if grip_level is None or required_grip is None:
+            return self.on_validation_error("Error reading grip level. Waiting for session end...")
+
+        if required_grip is not None and grip_level != required_grip:
+            return self.on_validation_error(
+                f"Grip level incorrect!\n"
+                f"Required: {GRIP_LEVELS.get(required_grip, required_grip)}\n"
+                f"Current: {GRIP_LEVELS.get(grip_level, grip_level)}"
+            )
 
         logger.info("All conditions met")
         self.update_status("Ready to record!")
+        play_info_sound()
         self.show_record_dialog.emit(session, lb_info)
 
     def get_weather(self):
@@ -407,6 +532,7 @@ class MainWindow(QMainWindow):
         if reply == QMessageBox.StandardButton.Yes:
             logger.info("Recording session")
             self.update_status("Recording...")
+            self.hide_to_tray()
             threading.Thread(target=self.record_session, daemon=True).start()
         else:
             self.update_status("Recording cancelled. Waiting for session end...")
@@ -451,7 +577,7 @@ class MainWindow(QMainWindow):
 
             lap_data = {"sector1": s1, "sector2": s2, "lap": lap}
             res = self.backend.submit_time(
-                self.token, lap_data, self.track, self.car,
+                self.token, lap_data, self.track, self.car, state[0]["carClass"],
                 state[0].get("driverName", "Unknown")
             )
 

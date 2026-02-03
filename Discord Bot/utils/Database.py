@@ -179,6 +179,69 @@ class Database:
         except aiosqlite.Error as e:
             logger.error("Error clearing lap times for track '%s': %s", track, e)
             raise DatabaseError(f"Error clearing lap times: {e}") from e
+        
+    # ==================== Settings ====================
+    async def get_event_admin_roles(self) -> list[int]:
+        """Retrieve the event administrator role ID."""
+        if not self._conn:
+            raise DatabaseError("Database connection not established")
+
+        try:
+            logger.debug("Fetching event administrator role ID")
+            async with self._conn.execute(
+                "SELECT value FROM settings WHERE key = 'event_admin_roles'"
+            ) as cursor:
+                result = await cursor.fetchall()
+                if result:
+                    role_ids = [int(row[0]) for row in result]
+                    logger.debug("Found event administrator role IDs: %s", role_ids)
+                    return role_ids
+                else:
+                    logger.debug("No event administrator role ID set")
+                    return []
+        except aiosqlite.Error as e:
+            logger.error("Error fetching event administrator role ID: %s", e)
+            raise DatabaseError(f"Error fetching settings: {e}") from e
+
+    async def add_event_admin_role(self, role_id: int) -> None:
+        """Add an event administrator role ID."""
+        if not self._conn:
+            raise DatabaseError("Database connection not established")
+
+        try:
+            logger.debug("Adding event administrator role ID %s", role_id)
+            await self._conn.execute(
+                "INSERT INTO settings (key, value) VALUES ('event_admin_roles', ?)",
+                (str(role_id),)
+            )
+            await self._conn.commit()
+            logger.debug("Event administrator role ID set to %s", role_id)
+        except aiosqlite.Error as e:
+            logger.error("Error setting event administrator role ID: %s", e)
+            raise DatabaseError(f"Error setting settings: {e}") from e
+        
+    async def remove_event_admin_role(self, role_id: int) -> bool:
+        """Remove an event administrator role ID."""
+        if not self._conn:
+            raise DatabaseError("Database connection not established")
+
+        try:
+            logger.debug("Removing event administrator role ID %s", role_id)
+            cursor = await self._conn.execute(
+                "DELETE FROM settings WHERE key = 'event_admin_roles' AND value = ?",
+                (str(role_id),)
+            )
+            await self._conn.commit()
+
+            if cursor.rowcount > 0:
+                logger.debug("Event administrator role ID %s removed", role_id)
+                return True
+            else:
+                logger.debug("Event administrator role ID %s not found", role_id)
+                return False
+        except aiosqlite.Error as e:
+            logger.error("Error removing event administrator role ID: %s", e)
+            raise DatabaseError(f"Error removing settings: {e}") from e
 
     # ==================== Leaderboard Data ====================
     async def get_lap_times(self, track: str) -> list[dict[str, Any]]:
@@ -190,7 +253,7 @@ class Database:
             logger.debug("Fetching lap times for track '%s'", track)
             async with self._conn.execute(
                 """
-                SELECT user_id, driver_name, car, lap_time, sector1, sector2
+                SELECT driver_name, car, class, lap_time, sector1, sector2
                 FROM lap_times 
                 WHERE track = ? AND lap_time IS NOT NULL
                 ORDER BY lap_time ASC
@@ -200,12 +263,13 @@ class Database:
                 rows = await cursor.fetchall()
                 return [
                     {
-                        "driver_name": row[1],
-                        "car": row[2],
+                        "driver_name": row[0],
+                        "car": row[1],
+                        "car_class": row[2],
                         "lap_time": row[3],
                         "sector1": row[4],
-                        "sector2": row[5] - row[4] if row[4] and row[5] else row[5],
-                        "sector3": row[3] - row[5] if row[5] else None,
+                        "sector2": row[5] - row[4],
+                        "sector3": row[3] - row[5],
                     }
                     for row in rows
                 ]
@@ -233,6 +297,25 @@ class Database:
         except aiosqlite.Error as e:
             logger.error("Error fetching active track for channel ID '%d': %s", channel_id, e)
             raise DatabaseError(f"Error fetching active track: {e}") from e
+        
+    async def update_entry_username(self, old_username: str, new_username: str) -> int:
+        """Update driver names in lap times when a user changes their username."""
+        if not self._conn:
+            raise DatabaseError("Database connection not established")
+
+        try:
+            logger.info("Updating driver name from '%s' to '%s'", old_username, new_username)
+            cursor = await self._conn.execute(
+                "UPDATE lap_times SET driver_name = ? WHERE driver_name = ?",
+                (new_username, old_username)
+            )
+            await self._conn.commit()
+            logger.info("Updated %d entries from '%s' to '%s'", cursor.rowcount, old_username, new_username)
+            return cursor.rowcount
+        except aiosqlite.Error as e:
+            logger.error("Error updating driver name from '%s' to '%s': %s", old_username, new_username, e)
+            raise DatabaseError(f"Error updating driver name: {e}") from e
+
 
     async def close(self) -> None:
         """Close the database connection."""

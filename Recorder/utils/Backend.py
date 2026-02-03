@@ -1,9 +1,13 @@
 import logging
+import os
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger("recorder")
 
-BASE_URL = "https://example.com/api"
+BASE_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 TIMEOUT = 5
 
 
@@ -72,12 +76,12 @@ class Backend:
             return data
         return None
 
-    def submit_time(self, token, time_data, track, car, driver_name):
+    def submit_time(self, token, time_data, track, car, class_, driver_name):
         """Submit a lap time."""
         logger.info("Submitting time %.3f for %s", time_data["lap"], track)
         data = self.post(
             f"leaderboard/{track}/submit",
-            {"time_data": time_data, "car": car, "driver_name": driver_name},
+            {"time_data": time_data, "car": car, "class": class_, "driver_name": driver_name},
             token
         )
         if data is False:

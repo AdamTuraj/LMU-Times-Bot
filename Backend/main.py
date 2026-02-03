@@ -163,6 +163,7 @@ async def submit_time(req: Request, res: Response):
     time_data = body.get("time_data")
     car = body.get("car")
     driver_name = body.get("driver_name")
+    car_class = body.get("class")
 
     if not time_data or not isinstance(time_data, dict):
         return res.status(400).json({"error": "time_data is required"})
@@ -170,6 +171,8 @@ async def submit_time(req: Request, res: Response):
         return res.status(400).json({"error": "car is required"})
     if not driver_name:
         return res.status(400).json({"error": "driver_name is required"})
+    if not car_class:
+        return res.status(400).json({"error": "class is required"})
 
     try:
         leaderboard = await database.get_leaderboard(track)
@@ -181,7 +184,7 @@ async def submit_time(req: Request, res: Response):
         return res.status(404).json({"error": "Leaderboard not found"})
 
     try:
-        await database.submit_lap_time(track, user[1], driver_name, car, time_data)
+        await database.submit_lap_time(track, user[1], driver_name, car, car_class, time_data)
     except DatabaseError as e:
         logger.error("Database error: %s", e)
         return res.status(500).json({"error": "Internal server error"})

@@ -46,6 +46,7 @@ class Database:
                 user_id TEXT NOT NULL,
                 driver_name TEXT NOT NULL,
                 car TEXT NOT NULL,
+                class TEXT,
                 lap_time REAL,
                 sector1 REAL,
                 sector2 REAL,
@@ -59,6 +60,13 @@ class Database:
                 user_id TEXT NOT NULL UNIQUE,
                 reason TEXT,
                 blacklisted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        await self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY NOT NULL,
+                value TEXT NOT NULL
             )
         """)
 
@@ -126,7 +134,7 @@ class Database:
             logger.error("Error fetching leaderboard: %s", e)
             raise DatabaseError(f"Error fetching leaderboard: {e}")
 
-    async def submit_lap_time(self, track, user_id, driver_name, car, time_data):
+    async def submit_lap_time(self, track, user_id, driver_name, car, car_class, time_data):
         try:
             new_lap = time_data.get("lap")
 
@@ -137,27 +145,31 @@ class Database:
                 existing = await cursor.fetchone()
 
             if existing:
+                existing = False
+
+            if existing:
                 existing_id, existing_lap = existing
                 if new_lap is not None and (existing_lap is None or new_lap < existing_lap):
                     await self.conn.execute(
                         """
                         UPDATE lap_times 
-                        SET driver_name = ?, car = ?, lap_time = ?, sector1 = ?, sector2 = ?
+                        SET driver_name = ?, car = ?, class = ?, lap_time = ?, sector1 = ?, sector2 = ?
                         WHERE id = ?
                         """,
-                        (driver_name, car, new_lap, time_data.get("sector1"), time_data.get("sector2"), existing_id)
+                        (driver_name, car, car_class, new_lap, time_data.get("sector1"), time_data.get("sector2"), existing_id)
                     )
                     await self.conn.commit()
                     logger.info("Updated lap time for %s: %.3f", driver_name, new_lap)
                     return True
                 return False
             else:
+                print("Submitting new lap time")
                 await self.conn.execute(
                     """
-                    INSERT INTO lap_times (track, user_id, driver_name, car, lap_time, sector1, sector2)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO lap_times (track, user_id, driver_name, car, class, lap_time, sector1, sector2)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (track, user_id, driver_name, car, new_lap, time_data.get("sector1"), time_data.get("sector2"))
+                    (track, user_id, driver_name, car, car_class, new_lap, time_data.get("sector1"), time_data.get("sector2"))
                 )
                 await self.conn.commit()
                 logger.info("Submitted lap time for %s", driver_name)

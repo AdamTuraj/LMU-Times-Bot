@@ -2,14 +2,13 @@ import logging
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
 
 import discord
 from discord.ext import commands
-from dotenv import load_dotenv
 
 from utils.Database import Database
 
-# Load environment variables
 load_dotenv(override=True)
 
 # Constants
@@ -27,7 +26,7 @@ def setup_logging() -> logging.Logger:
         datefmt=LOG_DATE_FORMAT,
         handlers=[
             logging.StreamHandler(sys.stdout),
-            logging.FileHandler("bot.log", encoding="utf-8"),
+            logging.FileHandler("time_track_bot.log", encoding="utf-8"),
         ],
     )
     
@@ -133,6 +132,7 @@ bot = DiscordBot()
     name="reload_cogs",
     description="Reloads all cogs (Owner only)",
 )
+@discord.app_commands.default_permissions(administrator=True)
 async def reload_cogs(interaction: discord.Interaction) -> None:
     """Reload all loaded cog extensions."""
     owner_id = os.getenv("OWNER_ID")
@@ -167,7 +167,6 @@ async def reload_cogs(interaction: discord.Interaction) -> None:
 
 
 def main() -> None:
-    """Main entry point for the bot."""
     if not validate_environment():
         sys.exit(1)
 

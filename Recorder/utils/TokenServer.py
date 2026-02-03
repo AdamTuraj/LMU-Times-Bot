@@ -37,8 +37,8 @@ class OAuthCallbackHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b"<h2>Login complete.</h2>You can close this tab.")
 
-        if self.login_callback:
-            self.login_callback(code, name)
+        if OAuthCallbackHandler.login_callback:
+            OAuthCallbackHandler.login_callback(code, name)
 
         threading.Thread(target=self.server.shutdown, daemon=True).start()
 

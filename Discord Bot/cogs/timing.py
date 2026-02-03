@@ -16,14 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def format_time(time: int) -> str:
-    """Format time from milliseconds to MM:SS.mmm format.
-    
-    Args:
-        time: Time in milliseconds.
-        
-    Returns:
-        Formatted time string.
-    """
+    """Format time from milliseconds to MM:SS.mmm format."""
     minutes, seconds = divmod(time, 60000)
     seconds, ms = divmod(seconds, 1000)
     return f"{minutes:02}:{seconds:02}.{ms:03}"
@@ -39,6 +32,8 @@ class Timing(commands.Cog):
     @app_commands.command()
     async def times(self, interaction: discord.Interaction) -> None:
         """Get the best lap times for this channel's configured track."""
+        await interaction.response.defer()
+        
         logger.debug(
             "User %s requested times in channel %s",
             interaction.user.id,
@@ -51,17 +46,19 @@ class Timing(commands.Cog):
             )
 
             if not track:
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     "No leaderboard is configured for this channel.",
                     ephemeral=True,
                 )
                 return
+            
+            track_enum = next((t for t in Tracks if t.value == track), None) # Track is the value of enum
+            track_name = track_enum.name.replace("_", " ").title() if track_enum else track
 
             lap_times = await self.bot.database.get_lap_times(track)
 
             if not lap_times:
-                track_name = Tracks[track].value if track in Tracks.__members__ else track
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     f"No lap times recorded for **{track_name}** yet.",
                     ephemeral=True,
                 )
@@ -70,28 +67,27 @@ class Timing(commands.Cog):
             data = format_data_image(lap_times)
             image = gen_image(data)
 
-            track_display = Tracks[track].value if track in Tracks.__members__ else track
             logger.info(
                 "Displayed %d lap times for track %s to user %s",
                 len(lap_times),
-                track,
+                track_name,
                 interaction.user.id,
             )
 
-            await interaction.response.send_message(
-                f"Here are the best times for **{track_display}**!",
-                file=discord.File(filename=f"{track}.png", fp=image),
+            await interaction.followup.send(
+                f"Here are the best times for **{track_name}**!",
+                file=discord.File(filename=f"{track_name}.png", fp=image),
             )
 
         except DatabaseError as e:
             logger.error("Database error fetching times: %s", e)
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "An error occurred while fetching lap times. Please try again later.",
                 ephemeral=True,
             )
         except Exception as e:
             logger.exception("Unexpected error in times command: %s", e)
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 "An unexpected error occurred.",
                 ephemeral=True,
             )
