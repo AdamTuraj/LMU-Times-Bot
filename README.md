@@ -25,12 +25,10 @@ LMU Times Bot/
 2. Click **New Application** and give it a name
 3. Navigate to **Bot** in the sidebar
 4. Click **Reset Token** and copy your bot token (save it for later)
-5. Enable the following **Privileged Gateway Intents**:
-   - Message Content Intent
-6. Navigate to **OAuth2 > URL Generator**
-7. Select scopes: `bot`, `applications.commands`
-8. Select bot permissions: `Send Messages`, `Embed Links`, `Attach Files`
-9. Copy the generated URL and use it to invite the bot to your server
+5. Navigate to **OAuth2 > URL Generator**
+6. Select scopes: `bot`, `applications.commands`
+7. Select bot permissions: `Send Messages`, `Embed Links`, `Attach Files`
+8. Copy the generated URL and use it to invite the bot to your server
 
 ### 2. Server Setup
 
