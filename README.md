@@ -16,6 +16,7 @@ LMU Times Bot/
 - Python 3.10 or higher
 - A Discord Developer Application ([create one here](https://discord.com/developers/applications))
 - A Linux server (for hosting the Backend and Discord Bot)
+- A Windows Instance (Computer, Virtual Machine, etc)
 
 ## Setup
 
@@ -36,17 +37,32 @@ Clone the repository and run the setup script:
 
 ```bash
 git clone https://github.com/AdamTuraj/LMU-Times-Bot.git
-cd "LMU Times Bot"
+cd "LMU-Times-Bot"
 chmod +x setup.sh
 ./setup.sh
 ```
 
 The setup script will:
+
 - Create virtual environments for the Backend and Discord Bot
 - Install required dependencies
 - Prompt you for configuration values (Discord token, API keys, etc.)
 
-### 3. Systemd Services
+### 3. Recorder Executable Generation
+
+To build the Windows client-side recorder executable on a Windows machine:
+
+1. Place an ICO icon file named `icon.ico` in the project root directory
+2. Open PowerShell or Command Prompt in the project directory
+3. Run the build script:
+
+```powershell
+.\build.bat
+```
+
+After entering the required configuration data, the recorder executable will be generated in the `Recorder\dist` directory.
+
+### 4. Systemd Services
 
 Create systemd service files to run the Backend and Discord Bot in the background.
 
@@ -63,9 +79,13 @@ After=network.target
 
 [Service]
 Type=simple
-User=<your-username>
-WorkingDirectory=/path/to/LMU Times Bot/Backend
-ExecStart=/path/to/LMU Times Bot/Backend/venv/bin/python main.py
+User=<username>
+WorkingDirectory=/home/<username>/LMU-Times-Bot/Backend
+
+EnvironmentFile=/home/<username>/LMU-Times-Bot/Backend/.env
+
+ExecStart=/home/<username>/LMU-Times-Bot/Backend/.venv/bin/uvicorn main:app --host ${HOST} --port ${PORT}
+
 Restart=always
 RestartSec=10
 
@@ -86,9 +106,9 @@ After=network.target lmu-backend.service
 
 [Service]
 Type=simple
-User=<your-username>
-WorkingDirectory=/path/to/LMU Times Bot/Discord Bot
-ExecStart=/path/to/LMU Times Bot/Discord Bot/venv/bin/python main.py
+User=<username>
+WorkingDirectory=/home/<username>/LMU-Times-Bot/Discord_Bot
+ExecStart=/home/<username>/LMU-Times-Bot/Discord_Bot/.venv/bin/python bot.py
 Restart=always
 RestartSec=10
 
@@ -111,7 +131,14 @@ sudo systemctl status lmu-backend
 sudo systemctl status lmu-discord-bot
 ```
 
-### 4. Firewall Configuration
+**Check logs:**
+
+```bash
+sudo journalctl -u lmu-backend.service
+sudo journalctl -u lmu-discord-bot.service
+```
+
+### 5. Firewall Configuration
 
 Open the required port for the Backend API:
 
@@ -124,15 +151,6 @@ sudo ufw reload
 sudo firewall-cmd --permanent --add-port=8000/tcp
 sudo firewall-cmd --reload
 ```
-
-### 5. Recorder Distribution
-
-The Recorder application runs on Windows alongside Le Mans Ultimate. It can be found in the out directory.
-
-## Usage
-
-- **Recorder**: Run on Windows while playing LMU to capture lap times
-- **Discord Bot**: Use slash commands in your Discord server to view leaderboards
 
 ## License
 

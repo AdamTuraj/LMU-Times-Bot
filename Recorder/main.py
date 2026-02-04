@@ -7,10 +7,9 @@ import threading
 import webbrowser
 import winsound
 import os
+import keyring
 from pathlib import Path
 
-import keyring
-from dotenv import load_dotenv
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QApplication,
@@ -28,9 +27,7 @@ from utils.Backend import Backend
 from utils.LMU import LMU
 from utils.TokenServer import LocalCallbackServer
 
-load_dotenv()
-
-APP_NAME = os.getenv("APP_NAME", "LMU Times Recorder")
+APP_NAME = "<APP_NAME>"
 SERVICE_NAME = APP_NAME.replace(" ", "")
 KEYRING_USERNAME = "user_token"
 OAUTH_CALLBACK_PORT = 54783

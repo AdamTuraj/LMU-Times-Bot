@@ -1,13 +1,9 @@
 import logging
-import os
 import requests
-from dotenv import load_dotenv
-
-load_dotenv()
 
 logger = logging.getLogger("recorder")
 
-BASE_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+BASE_URL = "<BASE_URL>"
 TIMEOUT = 5
 
 

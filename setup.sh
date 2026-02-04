@@ -7,9 +7,6 @@ set -euo pipefail
 # Generates:
 #   ./Backend/.env
 #   ./Discord Bot/.env
-#   ./Recorder/.env
-#
-# Builds Recorder (PyInstaller) and moves exe to ./out
 # ------------------------------------------------------------
 
 # ---------- Helpers ----------
@@ -168,24 +165,9 @@ DATABASE_URL="${DATABASE_URL}"
 EOF
 }
 
-write_env_recorder() {
-  local outpath="$1"
-  cat > "$outpath" <<EOF
-# Application name
-APP_NAME=${APP_NAME}
-
-# Backend API URL
-BACKEND_URL=${BACKEND_URL}
-
-# LMU local API URL
-LMU_URL=${LMU_URL}
-EOF
-}
-
 # ---------- Start ----------
 require_dir "./Backend"
 require_dir "./Discord Bot"
-require_dir "./Recorder"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PYTHON_BIN="$(pick_python)"
@@ -209,7 +191,6 @@ echo
 # -----------------------------
 echo "=== URLs ==="
 BACKEND_URL="$(prompt "Backend API URL" "http://localhost:8000")"
-LMU_URL="$(prompt "LMU local API URL" "http://localhost:6397")"
 echo
 
 # -----------------------------
@@ -252,77 +233,18 @@ OWNER_ID="$(prompt "Owner ID (OWNER_ID)" "")"
 DATABASE_URL="$DATABASE_PATH"  # Do not ask twice
 echo
 
-# -----------------------------
-# Group 6: Recorder
-# -----------------------------
-echo "=== Recorder ==="
-APP_NAME="$(prompt "App name (APP_NAME)" "LMU Times Recorder")"
-echo
-
 echo "=== Writing .env files ==="
 write_env_backend "./Backend/.env"
 write_env_discord_bot "./Discord Bot/.env"
-write_env_recorder "./Recorder/.env"
 
 echo "Wrote:"
 echo "  ./Backend/.env"
 echo "  ./Discord Bot/.env"
-echo "  ./Recorder/.env"
 echo
 
 echo "=== Creating venvs + installing requirements ==="
 venv_install_requirements "./Backend" "$PYTHON_BIN"
 venv_install_requirements "./Discord Bot" "$PYTHON_BIN"
-venv_install_requirements "./Recorder" "$PYTHON_BIN"
-
-echo
-echo "=== PyInstaller build (Recorder) ==="
-echo "Put an icon named 'icon.ico' in THIS script folder:"
-echo "  $SCRIPT_DIR"
-echo
-
-ICON_PATH="${SCRIPT_DIR}/icon.ico"
-while [[ ! -f "$ICON_PATH" ]]; do
-  read -r -p "icon.ico not found yet. Put it in the script folder and press Enter to re-check (or Ctrl+C to abort)..." _
-done
-
-echo "Found icon: $ICON_PATH"
-echo "Copying icon into ./Recorder ..."
-cp -f "$ICON_PATH" "./Recorder/icon.ico"
-
-echo "Building Recorder with PyInstaller..."
-(
-  cd "./Recorder"
-  activate_venv
-
-  # Ensure PyInstaller exists in this venv
-  if ! python -c "import PyInstaller" >/dev/null 2>&1; then
-    echo "PyInstaller not found in Recorder venv. Installing it now..."
-    pip install pyinstaller
-  fi
-
-  python -m PyInstaller --onefile --windowed --icon=icon.ico --name "$APP_NAME" main.py
-)
-
-mkdir -p "./out"
-
-DIST_DIR="./Recorder/dist"
-if [[ -d "$DIST_DIR" ]]; then
-  if [[ -f "${DIST_DIR}/${APP_NAME}.exe" ]]; then
-    mv -f "${DIST_DIR}/${APP_NAME}.exe" "./out/"
-    echo "Moved: ./out/${APP_NAME}.exe"
-  elif [[ -f "${DIST_DIR}/${APP_NAME}" ]]; then
-    mv -f "${DIST_DIR}/${APP_NAME}" "./out/"
-    echo "Moved: ./out/${APP_NAME}"
-  else
-    echo "WARNING: Could not find expected output in ${DIST_DIR}."
-    echo "Contents:"
-    ls -la "$DIST_DIR" || true
-  fi
-else
-  echo "WARNING: Dist folder not found: ${DIST_DIR}"
-fi
 
 echo
 echo "✅ Done."
-echo "Output folder: ./out"

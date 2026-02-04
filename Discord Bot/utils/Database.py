@@ -23,14 +23,76 @@ class Database:
         return self._conn is not None
 
     async def init(self) -> None:
-        """Initialize database connection."""
+        """Initialize database connection and create tables if needed."""
         try:
             logger.info("Initializing database connection to '%s'", self._db_path)
             self._conn = await aiosqlite.connect(self._db_path)
+            await self._create_tables()
             logger.info("Database initialized successfully")
         except aiosqlite.Error as e:
             logger.error("Failed to initialize database: %s", e)
             raise DatabaseError(f"Failed to initialize database: {e}") from e
+
+    async def _create_tables(self) -> None:
+        """Create database tables if they don't exist."""
+        if not self._conn:
+            raise DatabaseError("Database connection not established")
+
+        try:
+            await self._conn.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    user_name TEXT NOT NULL,
+                    token TEXT NOT NULL UNIQUE
+                )
+            """)
+
+            await self._conn.execute("""
+                CREATE TABLE IF NOT EXISTS leaderboards (
+                    track TEXT PRIMARY KEY NOT NULL,
+                    discord_channel INTEGER NOT NULL,
+                    weather TEXT NOT NULL,
+                    classes INTEGER DEFAULT 1
+                )
+            """)
+
+            await self._conn.execute("""
+                CREATE TABLE IF NOT EXISTS lap_times (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    track TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    driver_name TEXT NOT NULL,
+                    car TEXT NOT NULL,
+                    class TEXT,
+                    lap_time REAL,
+                    sector1 REAL,
+                    sector2 REAL,
+                    FOREIGN KEY (track) REFERENCES leaderboards(track)
+                )
+            """)
+
+            await self._conn.execute("""
+                CREATE TABLE IF NOT EXISTS blacklist (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL UNIQUE,
+                    reason TEXT,
+                    blacklisted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            await self._conn.execute("""
+                CREATE TABLE IF NOT EXISTS settings (
+                    key TEXT PRIMARY KEY NOT NULL,
+                    value TEXT NOT NULL
+                )
+            """)
+
+            await self._conn.commit()
+            logger.debug("Database schema initialized")
+        except aiosqlite.Error as e:
+            logger.error("Failed to create database tables: %s", e)
+            raise DatabaseError(f"Failed to create database tables: {e}") from e
 
     # ==================== Admin Controls ====================
 

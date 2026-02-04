@@ -7,7 +7,7 @@ load_dotenv()
 
 logger = logging.getLogger("recorder")
 
-BASE_URL = os.getenv("LMU_URL", "http://localhost:6397")
+BASE_URL = "<LMU_URL>"
 TIMEOUT = 5
 
 

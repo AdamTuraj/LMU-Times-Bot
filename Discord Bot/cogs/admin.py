@@ -26,6 +26,7 @@ class ConfirmView(discord.ui.View):
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
         """Handle confirm button click."""
+        await interaction.response.defer()
         self.value = True
         self.interaction = interaction
         self.stop()
@@ -35,6 +36,7 @@ class ConfirmView(discord.ui.View):
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
         """Handle cancel button click."""
+        await interaction.response.defer()
         self.value = False
         self.interaction = interaction
         self.stop()
@@ -153,9 +155,9 @@ class Admin(commands.Cog):
         existing_leaderboards = await self.bot.database.get_all_leaderboards()
 
         for lb in existing_leaderboards:
-            if lb[0] == track.name:
+            if lb[0] == track.value:
                 await interaction.response.send_message(
-                    f"A leaderboard for **{track.value}** already exists. "
+                    f"A leaderboard for **{track.name}** already exists. "
                     "You must remove it before adding a new one.",
                     ephemeral=True,
                 )
@@ -345,7 +347,7 @@ class Admin(commands.Cog):
         new_class_ids = current_class_ids
 
         if classes is not None:
-            _class_names, new_class_ids, error = self._parse_classes(classes)
+            _class_names, new_class_ids, error = self.parse_classes(classes)
             if error:
                 await interaction.response.send_message(error, ephemeral=True)
                 return
@@ -390,7 +392,7 @@ class Admin(commands.Cog):
 
         embed.add_field(
             name="Weather",
-            value=f"Temp: {new_temperature}°C, Rain: {new_rain}, Condition: {self._format_condition_name(new_condition)}, Grip: {new_grip.name.replace('_', ' ').title()}",
+            value=f"Temp: {new_temperature}°C, Rain: {new_rain}, Condition: {self.format_condition_name(new_condition)}, Grip: {new_grip.name.replace('_', ' ').title()}",
             inline=False,
         )
 
@@ -499,7 +501,7 @@ class Admin(commands.Cog):
                 weather_display = (
                     f"Temp: {weather.get('temperature', 'N/A')}°C, "
                     f"Rain: {weather.get('rain', 'N/A')}, "
-                    f"Condition: {self._format_condition_name(weather.get('condition', 'N/A'))}, "
+                    f"Condition: {self.format_condition_name(weather.get('condition', 'N/A'))}, "
                     f"Grip: {grip_level}"
                 )
             except (ValueError, SyntaxError):
@@ -541,12 +543,12 @@ class Admin(commands.Cog):
         """
         leaderboards = await self.bot.database.get_all_leaderboards()
         leaderboard = next(
-            (lb for lb in leaderboards if lb[0] == track.name), None
+            (lb for lb in leaderboards if lb[0] == track.value), None
         )
 
         if not leaderboard:
             await interaction.response.send_message(
-                f"No leaderboard configured for **{track.value}**.",
+                f"No leaderboard configured for **{track.name}**.",
                 ephemeral=True,
             )
             return
@@ -564,7 +566,7 @@ class Admin(commands.Cog):
             return
 
         class_names = [cls.name for cls in Classes if cls.value in class_ids]
-        condition_name = self._format_condition_name(weather.get("condition", 0))
+        condition_name = self.format_condition_name(weather.get("condition", 0))
 
         embed = discord.Embed(
             title=f"Session Info: {track.value}",
@@ -581,7 +583,7 @@ class Admin(commands.Cog):
             name="Classes", value=classes_text or "None", inline=False
         )
 
-        grip_level = GripLevel(weather.get('grip_level', 5)).name
+        grip_level = GripLevel(weather.get('grip_level', 5)).value
         weather_text = (
             f"Temperature: {weather.get('temperature', 'N/A')}°C\n"
             f"Rain: {weather.get('rain', 'N/A')}\n"
@@ -835,16 +837,29 @@ class Admin(commands.Cog):
     async def remove_event_admin_role(
         self,
         interaction: discord.Interaction,
+        role: discord.Role,
     ) -> None:
-        """Remove the event administrator role."""
-        await self.bot.database.remove_event_admin_role()
-        logger.info(
-            "User %s removed event admin role",
-            interaction.user.id,
-        )
-        await interaction.response.send_message(
-            "Event administrator role removed.", ephemeral=True
-        )
+        """Remove an event administrator role.
+
+        Parameters
+        -----------
+        role: discord.Role
+            The role to remove from event administrators.
+        """
+        removed = await self.bot.database.remove_event_admin_role(role.id)
+        if removed:
+            logger.info(
+                "User %s removed event admin role %s",
+                interaction.user.id,
+                role.id,
+            )
+            await interaction.response.send_message(
+                f"Event administrator role removed: {role.name}.", ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                f"Role {role.name} was not in the event administrator list.", ephemeral=True
+            )
 
     @group.command(name="view_event_admin_roles")
     @discord.app_commands.default_permissions(administrator=True)

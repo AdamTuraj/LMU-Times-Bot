@@ -261,11 +261,12 @@ async def discord_callback(req: Request, res: Response):
 
 
 # Startup/shutdown
+@app.on_startup
 async def startup():
     logger.info("Starting LMU Times Bot Backend")
     await database.init(DATABASE_PATH)
 
-
+@app.on_shutdown
 async def shutdown():
     logger.info("Shutting down")
     await database.close()
@@ -273,7 +274,6 @@ async def shutdown():
 
 def main():
     try:
-        asyncio.run(startup())
         logger.info("Server starting on %s:%d", HOST, PORT)
         app.run()
     except KeyboardInterrupt:
@@ -281,8 +281,6 @@ def main():
     except Exception as e:
         logger.exception("Fatal error: %s", e)
         sys.exit(1)
-    finally:
-        asyncio.run(shutdown())
 
 
 if __name__ == "__main__":
