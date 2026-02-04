@@ -585,7 +585,7 @@ class Admin(commands.Cog):
 
         grip_level = GripLevel(weather.get('grip_level', 5)).name.replace('_', ' ').title()
         weather_text = (
-            f"- Temperature: {weather.get('temperature', 'N/A')}°C\n"
+            f"- Temperature: {round(weather.get('temperature', 'N/A'))}°C\n"
             f"- Rain: {round(weather.get('rain', 'N/A'))}%\n"
             f"- Condition: {condition_name}\n"
             f"- Grip Level: {grip_level}"
