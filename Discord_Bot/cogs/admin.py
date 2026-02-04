@@ -569,21 +569,21 @@ class Admin(commands.Cog):
         condition_name = self.format_condition_name(weather.get("condition", 0))
 
         embed = discord.Embed(
-            title=f"Session Info: {track.value}",
+            title=f"Session Info: {track.name}",
             description="Configure your session with these settings for valid lap time submissions.",
             color=discord.Color.blue(),
         )
 
-        embed.add_field(name="Track", value=track.value, inline=False)
+        embed.add_field(name="Track", value=track.name, inline=False)
 
         classes_text = "\n".join(
-            cls.replace('_', ' ').title() for cls in class_names
+            cls.replace('_', ' ') for cls in class_names
         )
         embed.add_field(
             name="Classes", value=classes_text or "None", inline=False
         )
 
-        grip_level = GripLevel(weather.get('grip_level', 5)).value
+        grip_level = GripLevel(weather.get('grip_level', 5)).name.replace('_', ' ').title()
         weather_text = (
             f"Temperature: {weather.get('temperature', 'N/A')}°C\n"
             f"Rain: {weather.get('rain', 'N/A')}\n"
