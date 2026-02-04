@@ -574,9 +574,9 @@ class Admin(commands.Cog):
             color=discord.Color.blue(),
         )
 
-        embed.add_field(name="Track", value=track.name, inline=False)
+        embed.add_field(name="Track", value="- " + track.name, inline=False)
 
-        classes_text = "\n".join(
+        classes_text = "- " + "\n- ".join(
             cls.replace('_', ' ') for cls in class_names
         )
         embed.add_field(
@@ -585,18 +585,18 @@ class Admin(commands.Cog):
 
         grip_level = GripLevel(weather.get('grip_level', 5)).name.replace('_', ' ').title()
         weather_text = (
-            f"Temperature: {weather.get('temperature', 'N/A')}°C\n"
-            f"Rain: {weather.get('rain', 'N/A')}\n"
-            f"Condition: {condition_name}\n"
-            f"Grip Level: {grip_level}"
+            f"- Temperature: {weather.get('temperature', 'N/A')}°C\n"
+            f"- Rain: {round(weather.get('rain', 'N/A'))}%\n"
+            f"- Condition: {condition_name}\n"
+            f"- Grip Level: {grip_level}"
         )
         embed.add_field(name="Weather", value=weather_text, inline=False)
 
         embed.add_field(
             name="Important",
             value=(
-                "All weather slots must be set to the values above\n"
-                "You must be alone in a practice server"
+                "- All weather slots must be set to the values above\n"
+                "- You must be alone in a practice server"
             ),
             inline=False,
         )
