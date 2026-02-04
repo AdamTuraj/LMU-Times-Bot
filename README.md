@@ -53,6 +53,7 @@ The setup script will:
 To build the Windows client-side recorder executable on a Windows machine:
 
 1. Place an ICO icon file named `icon.ico` in the project root directory
+   - **Note:** For best results, use a multi-size .ico file with sizes: 16, 24, 32, 48, 64, 128, 256. This can be done online with websites such as [aconvert](https://www.aconvert.com/icon/)
 2. Open PowerShell or Command Prompt in the project directory
 3. Run the build script:
 

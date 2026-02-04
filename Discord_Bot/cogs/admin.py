@@ -215,12 +215,12 @@ class Admin(commands.Cog):
                 track.value,
                 interaction.user.id,
             )
-            await view.interaction.response.send_message(
+            await view.interaction.followup.send(
                 f"Leaderboard for **{track.name}** has been added!",
                 ephemeral=True,
             )
         else:
-            await view.interaction.response.send_message("Cancelled.", ephemeral=True)
+            await view.interaction.followup.send("Cancelled.", ephemeral=True)
 
     @group.command(name="remove_leaderboard")
     async def remove_leaderboard(
@@ -267,17 +267,17 @@ class Admin(commands.Cog):
                     track.name,
                     interaction.user.id,
                 )
-                await view.interaction.response.send_message(
+                await view.interaction.followup.send(
                     f"Leaderboard for **{track.name}** has been removed!",
                     ephemeral=True,
                 )
             else:
-                await view.interaction.response.send_message(
+                await view.interaction.followup.send(
                     f"No leaderboard found for **{track.name}**.",
                     ephemeral=True,
                 )
         else:
-            await view.interaction.response.send_message("Cancelled.", ephemeral=True)
+            await view.interaction.followup.send("Cancelled.", ephemeral=True)
 
     @group.command(name="edit_leaderboard")
     async def edit_leaderboard(
@@ -413,12 +413,12 @@ class Admin(commands.Cog):
                 track.name,
                 interaction.user.id,
             )
-            await view.interaction.response.send_message(
+            await view.interaction.followup.send(
                 f"Leaderboard for **{track.name}** has been updated!",
                 ephemeral=True,
             )
         else:
-            await view.interaction.response.send_message("Cancelled.", ephemeral=True)
+            await view.interaction.followup.send("Cancelled.", ephemeral=True)
 
     @group.command(name="edit_entry_username")
     async def edit_entry_username(
@@ -648,12 +648,12 @@ class Admin(commands.Cog):
                 track.name,
                 interaction.user.id,
             )
-            await view.interaction.response.send_message(
+            await view.interaction.followup.send(
                 f"Cleared **{count}** lap times for **{track.value}**!",
                 ephemeral=True,
             )
         else:
-            await view.interaction.response.send_message("Cancelled.", ephemeral=True)
+            await view.interaction.followup.send("Cancelled.", ephemeral=True)
 
     # ==================== Blacklist Management ====================
 
@@ -708,12 +708,12 @@ class Admin(commands.Cog):
                 interaction.user.id,
                 user.id,
             )
-            await view.interaction.response.send_message(
+            await view.interaction.followup.send(
                 f"**{user.display_name}** has been blacklisted!",
                 ephemeral=True,
             )
         else:
-            await view.interaction.response.send_message("Cancelled.", ephemeral=True)
+            await view.interaction.followup.send("Cancelled.", ephemeral=True)
 
     @group.command(name="unblacklist")
     async def unblacklist_user(
@@ -760,17 +760,17 @@ class Admin(commands.Cog):
                     interaction.user.id,
                     user.id,
                 )
-                await view.interaction.response.send_message(
+                await view.interaction.followup.send(
                     f"**{user.display_name}** has been removed from the blacklist!",
                     ephemeral=True,
                 )
             else:
-                await view.interaction.response.send_message(
+                await view.interaction.followup.send(
                     f"**{user.display_name}** was not in the blacklist.",
                     ephemeral=True,
                 )
         else:
-            await view.interaction.response.send_message("Cancelled.", ephemeral=True)
+            await view.interaction.followup.send("Cancelled.", ephemeral=True)
 
     @group.command(name="check_blacklist")
     async def check_blacklist(

@@ -11,6 +11,7 @@ import keyring
 from pathlib import Path
 
 from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QApplication,
     QLabel,
@@ -26,6 +27,7 @@ from PyQt6.QtWidgets import (
 from utils.Backend import Backend
 from utils.LMU import LMU
 from utils.TokenServer import LocalCallbackServer
+from utils.resources import get_embedded_icon
 
 APP_NAME = "<APP_NAME>"
 SERVICE_NAME = APP_NAME.replace(" ", "")
@@ -194,6 +196,16 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(APP_NAME)
         logger.info("Starting %s", APP_NAME)
+        
+        # Load embedded icon
+        try:
+            app_icon = get_embedded_icon()
+            if app_icon and not app_icon.isNull():
+                self.setWindowIcon(app_icon)
+            else:
+                logger.warning("Failed to load embedded icon - using default")
+        except Exception as e:
+            logger.warning("Error loading embedded icon: %s", e)
 
         self.backend = Backend()
         self.lmu = LMU()
@@ -221,9 +233,8 @@ class MainWindow(QMainWindow):
         # Setup system tray
         self.tray_icon = QSystemTrayIcon(self)
         icon = self.windowIcon()
-        if icon.isNull():
-            icon = self.style().standardIcon(self.style().StandardPixmap.SP_ComputerIcon)
-        self.tray_icon.setIcon(icon)
+        if not icon.isNull():
+            self.tray_icon.setIcon(icon)
         self.tray_icon.setToolTip(APP_NAME)
         
         # Create tray menu
@@ -478,9 +489,9 @@ class MainWindow(QMainWindow):
             return self.on_validation_error(
                 f"Weather incorrect!\n"
                 f"Required: {get_condition_name(req.get('condition'))}, "
-                f"{req.get('temperature')}°C, {req.get('rain')}%\n"
+                f"{req.get('temperature')}Ã‚Â°C, {req.get('rain')}%\n"
                 f"Slot {(bad_idx or 0) + 1}: {get_condition_name(bad['condition'])}, "
-                f"{bad['temperature']}°C, {bad['rain']}%"
+                f"{bad['temperature']}Ã‚Â°C, {bad['rain']}%"
             )
         
         grip_level = self.lmu.get_grip_level()
