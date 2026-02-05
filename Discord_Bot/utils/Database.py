@@ -341,7 +341,7 @@ class Database:
             logger.error("Error fetching lap times for track '%s': %s", track, e)
             raise DatabaseError(f"Error fetching lap times: {e}") from e
         
-    async def get_active_track_by_channel(self, channel_id: int) -> Optional[tuple[str]]:
+    async def get_active_track_by_channel(self, channel_id: int) -> tuple[str]:
         """Get the active track for a given Discord channel."""
         if not self._conn:
             raise DatabaseError("Database connection not established")
@@ -357,7 +357,7 @@ class Database:
                     return result
                 else:
                     logger.debug("No active track found for channel ID '%d'", channel_id)
-                    return None
+                    return ("", "")
         except aiosqlite.Error as e:
             logger.error("Error fetching active track for channel ID '%d': %s", channel_id, e)
             raise DatabaseError(f"Error fetching active track: {e}") from e
