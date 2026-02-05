@@ -119,6 +119,7 @@ class Admin(commands.Cog):
         track: Tracks,
         classes: str,
         channel: discord.TextChannel,
+        show_technical: bool = False,
         temperature: float = 25.0,
         rain: float = 0.0,
         condition: WeatherConditions = WeatherConditions.CLEAR,
@@ -134,6 +135,8 @@ class Admin(commands.Cog):
             Comma-separated list of class names (LMGT3, GTE, LMP3, LMP2, LMP2_UNRESTRICTED, HYPERCAR).
         channel: discord.TextChannel
             The Discord channel to post the leaderboard in.
+        show_technical: bool
+            Whether to show technical lap times (default: False).
         temperature: float
             Temperature setting (default: 25.0).
         rain: float
@@ -197,6 +200,11 @@ class Admin(commands.Cog):
             value=f"Temp: {temperature}°C, Rain: {rain}, Condition: {self.format_condition_name(condition)}, Grip: {grip.value}",
             inline=False,
         )
+        embed.add_field(
+            name="Show Technical",
+            value=str(show_technical),
+            inline=False,
+        )
 
         view = ConfirmView()
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
@@ -208,7 +216,7 @@ class Admin(commands.Cog):
             )
         elif view.value:
             await self.bot.database.add_leaderboard(
-                track.value, channel.id, weather, class_ids
+                track.value, channel.id, weather, class_ids, show_technical
             )
             logger.info(
                 "Leaderboard for track %s added by user %s",
@@ -286,6 +294,7 @@ class Admin(commands.Cog):
         track: Tracks,
         classes: Optional[str] = None,
         channel: Optional[discord.TextChannel] = None,
+        show_technical: Optional[bool] = None,
         temperature: Optional[float] = None,
         rain: Optional[float] = None,
         condition: Optional[WeatherConditions] = None,
@@ -301,6 +310,8 @@ class Admin(commands.Cog):
             Comma-separated list of class names (LMGT3, GTE, LMP3, LMP2, LMP2_UNRESTRICTED, HYPERCAR).
         channel: discord.TextChannel
             The Discord channel for the leaderboard.
+        show_technical: Optional[bool] = None,
+            Whether to show technical lap times.
         temperature: float
             Temperature setting.
         rain: float
@@ -310,6 +321,7 @@ class Admin(commands.Cog):
         grip: GripLevel
             Grip level.
         """
+
         if not await self.is_event_admin(interaction):
             return
 
@@ -331,7 +343,7 @@ class Admin(commands.Cog):
             )
             return
 
-        _track_name, current_channel_id, weather_str, classes_str = leaderboard
+        _track_name, current_channel_id, weather_str, classes_str, current_show_technical = leaderboard
         try:
             current_weather = ast.literal_eval(weather_str)
             current_class_ids = ast.literal_eval(classes_str)
@@ -345,6 +357,7 @@ class Admin(commands.Cog):
 
         new_channel_id = channel.id if channel else current_channel_id
         new_class_ids = current_class_ids
+        new_show_technical = show_technical if show_technical is not None else current_show_technical
 
         if classes is not None:
             _class_names, new_class_ids, error = self.parse_classes(classes)
@@ -396,6 +409,12 @@ class Admin(commands.Cog):
             inline=False,
         )
 
+        embed.add_field(
+            name="Show Technical",
+            value=str(new_show_technical),
+            inline=False,
+        )
+
         view = ConfirmView()
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
         await view.wait()
@@ -406,7 +425,7 @@ class Admin(commands.Cog):
             )
         elif view.value:
             await self.bot.database.add_leaderboard(
-                track.value, new_channel_id, new_weather, new_class_ids
+                track.value, new_channel_id, new_weather, new_class_ids, new_show_technical
             )
             logger.info(
                 "Leaderboard for track %s edited by user %s",
@@ -488,12 +507,13 @@ class Admin(commands.Cog):
         )
 
         for lb in leaderboards:
-            track, channel_id, weather_str, classes_str = lb
+            track, channel_id, weather_str, classes_str, show_technical = lb
             track_display = (
                 Tracks[track].value if track in Tracks.__members__ else track
             )
             channel = self.bot.get_channel(channel_id)
             channel_str = channel.mention if channel else f"ID: {channel_id}"
+            show_technical_display = "True" if show_technical else "False"
             
             try:
                 weather = ast.literal_eval(weather_str)
@@ -521,7 +541,8 @@ class Admin(commands.Cog):
                 value=(
                     f"Channel: {channel_str}\n"
                     f"Weather: {weather_display}\n"
-                    f"Classes: {classes_display}"
+                    f"Classes: {classes_display}\n"
+                    f"Show Technical: {show_technical_display}"
                 ),
                 inline=False,
             )
@@ -553,7 +574,7 @@ class Admin(commands.Cog):
             )
             return
 
-        _track_name, _channel_id, weather_str, classes_str = leaderboard
+        _track_name, _channel_id, weather_str, classes_str, _show_technical = leaderboard
 
         try:
             weather = ast.literal_eval(weather_str)

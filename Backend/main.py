@@ -10,8 +10,8 @@ from dotenv import load_dotenv
 from nexios import NexiosApp, MakeConfig
 from nexios.http import Request, Response
 
-from database import Database, DatabaseError
-from middleware import rate_limit_middleware, auth_middleware
+from utils.database import Database, DatabaseError
+from utils.middleware import rate_limit_middleware, auth_middleware
 
 load_dotenv()
 

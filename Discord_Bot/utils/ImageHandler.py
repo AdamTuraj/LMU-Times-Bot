@@ -62,22 +62,33 @@ def format_sector(time: float | None) -> str:
     return f"{time:.3f}"
 
 
-def format_data(data: list[dict[str, Any]]) -> list[list[Any]]:
+def format_data(data: list[dict[str, Any]], show_technical: bool = True) -> list[list[Any]]:
     if not data:
         logger.warning("No data provided to format_data")
         return []
 
     sorted_data = sorted(data, key=lambda x: x["lap_time"])
     
+    # Convert sectors to floats early and filter if not showing technical
+    for driver in sorted_data:
+        sector1 = driver.get("sector1")
+        sector2 = driver.get("sector2")
+        driver["sector1"] = float(sector1) if sector1 is not None else -1
+        driver["sector2"] = float(sector2) if sector2 is not None else -1
+        
+        # Normalize class name
+        if driver.get("car_class") == "LMP2_ELMS":
+            driver["car_class"] = "LMP2"
+    
+    # Filter out invalid laps if not showing technical
+    if not show_technical:
+        sorted_data = [d for d in sorted_data if d["sector1"] != -1 and d["sector2"] != -1]
+    
+    # Calculate class positions AFTER filtering
     class_leaders = {}
     class_tracker = {"LMGT3": 0, "GTE": 0, "LMP3": 0, "LMP2": 0, "Hypercar": 0}
     for driver in sorted_data:
         car_class = driver.get("car_class")
-
-        if car_class == "LMP2_ELMS":
-            car_class = "LMP2"
-            driver["car_class"] = "LMP2"
-
         class_tracker[car_class] += 1
         driver["class_pos"] = class_tracker[car_class]
 
@@ -91,25 +102,57 @@ def format_data(data: list[dict[str, Any]]) -> list[list[Any]]:
         delta = f"+{driver['lap_time'] - class_leader_time:.3f}" if driver["lap_time"] > class_leader_time else "-"
         class_pos = driver.get("class_pos", 0)
 
+        sector1 = driver["sector1"]
+        sector2 = driver["sector2"]
+        lap_time = driver["lap_time"]
+
+        # Process sectors based on show_technical
+        if show_technical:
+            if sector1 == -1 and sector2 > 0:
+                # Sector 1 is invalid. Sector 1 and 2 cannot be shown but sector 3 can be calculated
+                sector3 = format_sector(lap_time - sector2)
+                sector1_str = "-"
+                sector2_str = "-"
+            elif sector2 == -1 and sector1 > 0:
+                # Sector 2 is invalid. Sector 2 and 3 cannot be shown but sector 1 can be shown
+                sector1_str = format_sector(sector1)
+                sector2_str = "-"
+                sector3 = "-"
+            elif sector1 == -1 and sector2 == -1:
+                # Both sectors are invalid somehow. Show dashes for all sectors
+                sector1_str = "-"
+                sector2_str = "-"
+                sector3 = "-"
+            else:
+                # All sectors valid, calculate sector 3
+                sector1_str = format_sector(sector1)
+                sector2_str = format_sector(sector2)
+                sector3 = format_sector(lap_time - sector1 - sector2)
+        else:
+            # All sectors are valid (filtered above)
+            sector1_str = format_sector(sector1)
+            sector2_str = format_sector(sector2)
+            sector3 = format_sector(lap_time - sector1 - sector2)
+
         formatted.append([
             class_pos,
             pos,
             driver["driver_name"],
             driver["car"],
-            format_sector(driver.get("sector1")),
-            format_sector(driver.get("sector2")),
-            format_sector(driver.get("sector3")),
-            format_time(driver["lap_time"]),
+            sector1_str,
+            sector2_str,
+            sector3,
+            format_time(lap_time),
             delta,
             car_class,
-            class_pos,
+            class_pos
         ])
     
     logger.debug("Formatted %d lap time entries", len(formatted))
     return formatted
 
 
-def gen_image(data: list[list[Any]]) -> io.BytesIO:
+def gen_image(data: list[list[Any]], show_technical: bool) -> io.BytesIO:
     logger.debug("Generating leaderboard image with %d entries", len(data))
     
     fastest_splits = _find_fastest_sectors(data)

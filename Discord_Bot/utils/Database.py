@@ -53,7 +53,8 @@ class Database:
                     track TEXT PRIMARY KEY NOT NULL,
                     discord_channel INTEGER NOT NULL,
                     weather TEXT NOT NULL,
-                    classes INTEGER DEFAULT 1
+                    classes INTEGER DEFAULT 1,
+                    show_technical BOOLEAN DEFAULT 0
                 )
             """)
 
@@ -101,7 +102,8 @@ class Database:
         track: str,
         discord_channel: int,
         weather: dict[str, Any],
-        classes: list[int]
+        classes: list[int],
+        show_technical: bool = False
     ) -> None:
         """Add or update a leaderboard entry."""
         if not self._conn:
@@ -111,14 +113,15 @@ class Database:
             logger.info("Adding leaderboard for track '%s'", track)
             await self._conn.execute(
                 """
-                INSERT INTO leaderboards (track, discord_channel, weather, classes) 
-                VALUES (?, ?, ?, ?)
+                INSERT INTO leaderboards (track, discord_channel, weather, classes, show_technical) 
+                VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(track) DO UPDATE SET 
                     discord_channel = excluded.discord_channel,
                     weather = excluded.weather,
-                    classes = excluded.classes
+                    classes = excluded.classes,
+                    show_technical = excluded.show_technical
                 """,
-                (track, discord_channel, str(weather), str(classes))
+                (track, discord_channel, str(weather), str(classes), show_technical)
             )
             await self._conn.commit()
             logger.info("Leaderboard for track '%s' saved successfully", track)
@@ -330,8 +333,7 @@ class Database:
                         "car_class": row[2],
                         "lap_time": row[3],
                         "sector1": row[4],
-                        "sector2": row[5] - row[4],
-                        "sector3": row[3] - row[5],
+                        "sector2": row[5],
                     }
                     for row in rows
                 ]
@@ -339,7 +341,7 @@ class Database:
             logger.error("Error fetching lap times for track '%s': %s", track, e)
             raise DatabaseError(f"Error fetching lap times: {e}") from e
         
-    async def get_active_track_by_channel(self, channel_id: int) -> Optional[str]:
+    async def get_active_track_by_channel(self, channel_id: int) -> Optional[tuple[str]]:
         """Get the active track for a given Discord channel."""
         if not self._conn:
             raise DatabaseError("Database connection not established")
@@ -347,12 +349,12 @@ class Database:
         try:
             logger.debug("Fetching active track for channel ID '%d'", channel_id)
             async with self._conn.execute(
-                "SELECT track FROM leaderboards WHERE discord_channel = ?", (channel_id,)
+                "SELECT track, show_technical FROM leaderboards WHERE discord_channel = ?", (channel_id,)
             ) as cursor:
                 result = await cursor.fetchone()
                 if result:
                     logger.debug("Found active track '%s' for channel ID '%d'", result[0], channel_id)
-                    return result[0]
+                    return result
                 else:
                     logger.debug("No active track found for channel ID '%d'", channel_id)
                     return None

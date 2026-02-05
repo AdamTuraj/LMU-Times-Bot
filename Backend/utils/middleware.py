@@ -1,7 +1,7 @@
 import time
 from collections import defaultdict
 
-from database import DatabaseError
+from utils.database import DatabaseError
 
 # Rate limit stores
 requests = defaultdict(list)

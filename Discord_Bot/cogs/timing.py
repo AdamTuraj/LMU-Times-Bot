@@ -15,13 +15,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def format_time(time: int) -> str:
-    """Format time from milliseconds to MM:SS.mmm format."""
-    minutes, seconds = divmod(time, 60000)
-    seconds, ms = divmod(seconds, 1000)
-    return f"{minutes:02}:{seconds:02}.{ms:03}"
-
-
 class Timing(commands.Cog):
     """Cog for timing-related commands."""
 
@@ -41,7 +34,7 @@ class Timing(commands.Cog):
         )
 
         try:
-            track = await self.bot.database.get_active_track_by_channel(
+            track, show_technical = await self.bot.database.get_active_track_by_channel(
                 interaction.channel.id
             )
 
@@ -63,9 +56,9 @@ class Timing(commands.Cog):
                     ephemeral=True,
                 )
                 return
-
-            data = format_data_image(lap_times)
-            image = gen_image(data)
+    
+            data = format_data_image(lap_times, show_technical)
+            image = gen_image(data, show_technical)
 
             logger.info(
                 "Displayed %d lap times for track %s to user %s",

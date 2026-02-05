@@ -35,7 +35,8 @@ class Database:
                 track TEXT PRIMARY KEY NOT NULL,
                 discord_channel INTEGER NOT NULL,
                 weather TEXT NOT NULL,
-                classes INTEGER DEFAULT 1
+                classes INTEGER DEFAULT 1,
+                show_technical BOOLEAN DEFAULT 0
             )
         """)
 
@@ -105,18 +106,19 @@ class Database:
             logger.error("Error removing user: %s", e)
             raise DatabaseError(f"Error removing user: {e}")
 
-    async def add_leaderboard(self, track, discord_channel, weather, classes):
+    async def add_leaderboard(self, track, discord_channel, weather, classes, show_technical):
         try:
             await self.conn.execute(
                 """
-                INSERT INTO leaderboards (track, discord_channel, weather, classes) 
-                VALUES (?, ?, ?, ?)
+                INSERT INTO leaderboards (track, discord_channel, weather, classes, show_technical) 
+                VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(track) DO UPDATE SET 
                     discord_channel = excluded.discord_channel,
                     weather = excluded.weather,
-                    classes = excluded.classes
+                    classes = excluded.classes,
+                    show_technical = excluded.show_technical
                 """,
-                (track, discord_channel, str(weather), str(classes))
+                (track, discord_channel, str(weather), str(classes), show_technical)
             )
             await self.conn.commit()
             logger.info("Saved leaderboard for track: %s", track)
