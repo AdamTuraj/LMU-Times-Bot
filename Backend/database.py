@@ -145,9 +145,6 @@ class Database:
                 existing = await cursor.fetchone()
 
             if existing:
-                existing = False
-
-            if existing:
                 existing_id, existing_lap = existing
                 if new_lap is not None and (existing_lap is None or new_lap < existing_lap):
                     await self.conn.execute(
