@@ -126,13 +126,13 @@ def format_data(data: list[dict[str, Any]], show_technical: bool = True) -> list
             else:
                 # All sectors valid, calculate sector 3
                 sector1_str = format_sector(sector1)
-                sector2_str = format_sector(sector2)
-                sector3 = format_sector(lap_time - sector1 - sector2)
+                sector2_str = format_sector(sector2 - sector1)
+                sector3 = format_sector(lap_time - sector2)
         else:
             # All sectors are valid (filtered above)
             sector1_str = format_sector(sector1)
-            sector2_str = format_sector(sector2)
-            sector3 = format_sector(lap_time - sector1 - sector2)
+            sector2_str = format_sector(sector2 - sector1)
+            sector3 = format_sector(lap_time - sector2)
 
         formatted.append([
             class_pos,
