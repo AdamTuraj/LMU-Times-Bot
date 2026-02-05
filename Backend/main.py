@@ -34,7 +34,7 @@ DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "")
 DISCORD_CALLBACK_URL = os.getenv("DISCORD_CALLBACK_URL", "")
 HOME_GUILD_ID = os.getenv("HOME_GUILD_ID", "")
 APPLICATION_CALLBACK = os.getenv("APPLICATION_CALLBACK", "")
-DATABASE_PATH = os.getenv("DATABASE_PATH", "database.db")
+DATABASE_PATH = os.getenv("DATABASE_PATH", "../database.db")
 
 DISCORD_API = "https://discord.com/api/v10"
 
@@ -165,14 +165,53 @@ async def submit_time(req: Request, res: Response):
     driver_name = body.get("driver_name")
     car_class = body.get("class")
 
+    # Validate required fields
     if not time_data or not isinstance(time_data, dict):
-        return res.status(400).json({"error": "time_data is required"})
-    if not car:
-        return res.status(400).json({"error": "car is required"})
-    if not driver_name:
-        return res.status(400).json({"error": "driver_name is required"})
-    if not car_class:
-        return res.status(400).json({"error": "class is required"})
+        return res.status(400).json({"error": "time_data is required and must be an object"})
+    if not car or not isinstance(car, str) or not car.strip():
+        return res.status(400).json({"error": "car is required and must be a non-empty string"})
+    if not driver_name or not isinstance(driver_name, str) or not driver_name.strip():
+        return res.status(400).json({"error": "driver_name is required and must be a non-empty string"})
+    if not car_class or not isinstance(car_class, str) or not car_class.strip():
+        return res.status(400).json({"error": "class is required and must be a non-empty string"})
+
+    # Validate time_data structure
+    lap_time = time_data.get("lap")
+    sector1 = time_data.get("sector1")
+    sector2 = time_data.get("sector2")
+
+    if lap_time is None:
+        return res.status(400).json({"error": "time_data.lap is required"})
+    if sector1 is None:
+        return res.status(400).json({"error": "time_data.sector1 is required"})
+    if sector2 is None:
+        return res.status(400).json({"error": "time_data.sector2 is required"})
+
+    # Validate time values are numbers
+    try:
+        lap_time = float(lap_time)
+        sector1 = float(sector1)
+        sector2 = float(sector2)
+    except (ValueError, TypeError):
+        return res.status(400).json({"error": "All time values must be numbers"})
+
+    # Validate lap_time is positive
+    if lap_time <= 0:
+        return res.status(400).json({"error": "lap_time must be greater than 0"})
+
+    # Validate sector times are either -1 or positive
+    if sector1 != -1 and sector1 <= 0:
+        return res.status(400).json({"error": "sector1 must be -1 or greater than 0"})
+    if sector2 != -1 and sector2 <= 0:
+        return res.status(400).json({"error": "sector2 must be -1 or greater than 0"})
+
+    # Validate string lengths
+    if len(driver_name) > 100:
+        return res.status(400).json({"error": "driver_name must not exceed 100 characters"})
+    if len(car) > 100:
+        return res.status(400).json({"error": "car must not exceed 100 characters"})
+    if len(car_class) > 50:
+        return res.status(400).json({"error": "class must not exceed 50 characters"})
 
     try:
         leaderboard = await database.get_leaderboard(track)
@@ -183,8 +222,14 @@ async def submit_time(req: Request, res: Response):
     if not leaderboard:
         return res.status(404).json({"error": "Leaderboard not found"})
 
+    time_data = {
+        "lap": lap_time,
+        "sector1": sector1,
+        "sector2": sector2
+    }
+
     try:
-        await database.submit_lap_time(track, user[1], driver_name, car, car_class, time_data)
+        await database.submit_lap_time(track, user[1], driver_name.strip(), car.strip(), car_class.strip(), time_data)
     except DatabaseError as e:
         logger.error("Database error: %s", e)
         return res.status(500).json({"error": "Internal server error"})

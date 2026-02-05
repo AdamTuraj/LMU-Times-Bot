@@ -162,7 +162,6 @@ class Database:
                     return True
                 return False
             else:
-                print("Submitting new lap time")
                 await self.conn.execute(
                     """
                     INSERT INTO lap_times (track, user_id, driver_name, car, class, lap_time, sector1, sector2)
