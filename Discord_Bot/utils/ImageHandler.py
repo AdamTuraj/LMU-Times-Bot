@@ -86,7 +86,7 @@ def format_data(data: list[dict[str, Any]], show_technical: bool = True) -> list
     
     # Calculate class positions AFTER filtering
     class_leaders = {}
-    class_tracker = {"LMGT3": 0, "GTE": 0, "LMP3": 0, "LMP2": 0, "Hypercar": 0}
+    class_tracker = {"GT3": 0, "GTE": 0, "LMP3": 0, "LMP2": 0, "Hypercar": 0}
     for driver in sorted_data:
         car_class = driver.get("car_class")
         class_tracker[car_class] += 1

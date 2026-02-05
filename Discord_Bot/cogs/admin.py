@@ -184,7 +184,7 @@ class Admin(commands.Cog):
             "temperature": temperature,
             "rain": rain,
             "condition": condition.value,
-            "grip_level": grip.value,
+            "grip_level": grip.name,
         }
 
         embed = discord.Embed(
@@ -554,6 +554,7 @@ class Admin(commands.Cog):
         self,
         interaction: discord.Interaction,
         track: Tracks,
+        title: Optional[str] = None,
     ) -> None:
         """Display server settings for a configured leaderboard.
 
@@ -561,6 +562,8 @@ class Admin(commands.Cog):
         -----------
         track: Tracks
             The track to display settings for.
+        title: str
+            Optional custom title for the embed.
         """
         leaderboards = await self.bot.database.get_all_leaderboards()
         leaderboard = next(
@@ -589,13 +592,16 @@ class Admin(commands.Cog):
         class_names = [cls.name for cls in Classes if cls.value in class_ids]
         condition_name = self.format_condition_name(weather.get("condition", 0))
 
+        if not title:
+            title = f"Server Info: {track.name.replace('_', ' ').title()}"
+
         embed = discord.Embed(
-            title=f"Session Info: {track.name}",
+            title=title,
             description="Configure your session with these settings for valid lap time submissions.",
             color=discord.Color.blue(),
         )
 
-        embed.add_field(name="Track", value="- " + track.name, inline=False)
+        embed.add_field(name="Track", value="- " + track.name.replace('_', ' ').title(), inline=False)
 
         classes_text = "- " + "\n- ".join(
             cls.replace('_', ' ') for cls in class_names
