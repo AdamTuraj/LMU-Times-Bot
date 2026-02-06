@@ -123,7 +123,7 @@ if exist "%PATCH_SCRIPT%" del /q "%PATCH_SCRIPT%"
 >>"%PATCH_SCRIPT%" echo     $content = Get-Content $FilePath -Raw
 >>"%PATCH_SCRIPT%" echo.
 >>"%PATCH_SCRIPT%" echo     $pattern = '(?m)^(\s*' + [regex]::Escape($VarName) + '\s*=\s*)([''"])(.+?)\2'
->>"%PATCH_SCRIPT%" echo     $replacement = "`$1`$2$NewValue`$2"
+>>"%PATCH_SCRIPT%" echo     $replacement = "`$1`${2}$NewValue`${2}"
 >>"%PATCH_SCRIPT%" echo     $newContent = [regex]::Replace($content, $pattern, $replacement)
 >>"%PATCH_SCRIPT%" echo.
 >>"%PATCH_SCRIPT%" echo     if ($newContent -eq $content) { throw "Could not find $VarName = '...' in $FilePath" }
@@ -134,10 +134,10 @@ if exist "%PATCH_SCRIPT%" del /q "%PATCH_SCRIPT%"
 >>"%PATCH_SCRIPT%" echo.
 >>"%PATCH_SCRIPT%" echo Patch-Constant -FilePath '%RECORDER_DIR%\utils\lmu.py' -VarName 'BASE_URL' -NewValue '%LMU_URL%'
 >>"%PATCH_SCRIPT%" echo Patch-Constant -FilePath '%RECORDER_DIR%\main.py' -VarName 'APP_NAME' -NewValue '%APP_NAME%'
+>>"%PATCH_SCRIPT%" echo Patch-Constant -FilePath '%RECORDER_DIR%\main.py' -VarName '__version__' -NewValue '%VERSION%'
 >>"%PATCH_SCRIPT%" echo Patch-Constant -FilePath '%RECORDER_DIR%\utils\backend.py' -VarName 'BASE_URL' -NewValue '%BACKEND_URL%'
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PATCH_SCRIPmain.py' -VarName '__version__' -NewValue '%VERSION%'
->>"%PATCH_SCRIPT%" echo Patch-Constant -FilePath '%RECORDER_DIR%\T%"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PATCH_SCRIPT%"
 set "PATCH_RESULT=%ERRORLEVEL%"
 del /q "%PATCH_SCRIPT%" 2>nul
 
