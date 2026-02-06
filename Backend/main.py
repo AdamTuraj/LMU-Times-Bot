@@ -104,7 +104,17 @@ async def get_discord_user_data(code):
     except Exception as e:
         logger.exception("Error fetching Discord user")
         return {"error": str(e)}
+    
+@app.get("/version")
+async def get_version(req: Request, res: Response):
+    try:
+        with open("../VERSION", "r") as f:
+            version = f.read().strip()
+    except Exception as e:
+        logger.error("Error reading version file: %s", e)
+        return res.status(500).json({"error": "Internal server error"})
 
+    return res.json({"version": version})
 
 # Routes - Leaderboard
 @app.get("/leaderboard/{track}")

@@ -29,6 +29,8 @@ from utils.LMU import LMU
 from utils.TokenServer import LocalCallbackServer
 from utils.resources import get_embedded_icon
 
+__version__ = "<VERSION>"
+
 APP_NAME = "<APP_NAME>"
 SERVICE_NAME = APP_NAME.replace(" ", "")
 KEYRING_USERNAME = "user_token"
@@ -208,6 +210,30 @@ class MainWindow(QMainWindow):
             logger.warning("Error loading embedded icon: %s", e)
 
         self.backend = Backend()
+        
+        # Check version compatibility
+        backend_version = self.backend.get_version()
+        if not backend_version:
+            logger.error("Failed to get backend version")
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Critical)
+            msg.setWindowTitle("Backend Error")
+            msg.setText("Failed to connect to backend. Please check your connection and try again.")
+            msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+            msg.exec()
+            sys.exit(1)
+        
+        if backend_version != __version__:
+            logger.error("Version mismatch: Client=%s Expected=%s", __version__, backend_version)
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Critical)
+            msg.setWindowTitle("Version Mismatch")
+            msg.setText(f"Your client version ({__version__}) does not match the latest version ({backend_version}).\n\n"
+                       "Please download the latest executable.")
+            msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+            msg.exec()
+            sys.exit(1)
+        
         self.lmu = LMU()
         self.oauth_server = None
 
@@ -489,9 +515,9 @@ class MainWindow(QMainWindow):
             return self.on_validation_error(
                 f"Weather incorrect!\n"
                 f"Required: {get_condition_name(req.get('condition'))}, "
-                f"{req.get('temperature')}Ã‚Â°C, {req.get('rain')}%\n"
+                f"{req.get('temperature')}Â°C, {req.get('rain')}%\n"
                 f"Slot {(bad_idx or 0) + 1}: {get_condition_name(bad['condition'])}, "
-                f"{bad['temperature']}Ã‚Â°C, {bad['rain']}%"
+                f"{bad['temperature']}Â°C, {bad['rain']}%"
             )
         
         grip_level = self.lmu.get_grip_level()
@@ -510,6 +536,7 @@ class MainWindow(QMainWindow):
         logger.info("All conditions met")
         self.update_status("Ready to record!")
         play_info_sound()
+        self.show_from_tray()
         self.show_record_dialog.emit(session, lb_info)
 
     def get_weather(self):
@@ -552,6 +579,13 @@ class MainWindow(QMainWindow):
 
         while True:
             state = self.lmu.get_standings()
+            session_state = self.lmu.get_session_info()
+
+            if not session_state.get("inControlOfVehicle", False):
+                logger.info("Session ended during recording")
+                self.update_status("Session ended. Waiting for new session...")
+                self.poll_lmu()
+                return
 
             if state is False:
                 logger.warning("LMU disconnected during recording")

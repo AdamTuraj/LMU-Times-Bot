@@ -3,8 +3,10 @@ setlocal EnableExtensions EnableDelayedExpansion
 
 REM ============================================================
 REM Build Recorder EXE
+REM - Reads VERSION file and prompts for confirmation
 REM - Prompts for values
 REM - Patches python constants (instead of writing .env):
+REM     Recorder\main.py           __version__ = "<VERSION>"
 REM     Recorder\utils\lmu.py      BASE_URL = "<LMU_URL>"
 REM     Recorder\main.py           APP_NAME = "<APP_NAME>"
 REM     Recorder\utils\backend.py  BASE_URL = "<BACKEND_URL>"
@@ -14,7 +16,36 @@ REM - Ensures icon.ico exists beside this .bat, copies into Recorder
 REM - Runs: pyinstaller --onefile --windowed --icon=icon.ico --name "<App Name>" main.py
 REM ============================================================
 
+REM ---------- Read and confirm version ----------
+set "SCRIPT_DIR=%~dp0"
+if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
+
+if not exist "%SCRIPT_DIR%\VERSION" (
+    echo Error: VERSION file not found: "%SCRIPT_DIR%\VERSION"
+    exit /b 1
+)
+
+set /p VERSION=<"%SCRIPT_DIR%\VERSION"
+set "VERSION=!VERSION: =!"
+
+if "!VERSION!"=="" (
+    echo Error: VERSION file is empty.
+    exit /b 1
+)
+
+echo.
+echo ============================================================
+echo Building version: !VERSION!
+echo ============================================================
+echo.
+set /p "CONFIRM=Continue with this version? (y/n): "
+if /i not "!CONFIRM!"=="y" (
+    echo Build cancelled.
+    exit /b 0
+)
+
 REM ---------- Prompt for values ----------
+echo.
 set /p "APP_NAME=Application name (APP_NAME): "
 if "!APP_NAME!"=="" (
     echo Error: APP_NAME cannot be empty.
@@ -31,9 +62,7 @@ set "DEFAULT_LMU_URL=http://localhost:6397"
 set /p "LMU_URL=LMU local API URL [default: %DEFAULT_LMU_URL%]: "
 if "!LMU_URL!"=="" set "LMU_URL=%DEFAULT_LMU_URL%"
 
-REM ---------- Resolve script directory ----------
-set "SCRIPT_DIR=%~dp0"
-if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
+REM ---------- Resolve directories ----------
 set "RECORDER_DIR=%SCRIPT_DIR%\Recorder"
 
 REM ---------- Validate paths ----------
@@ -107,7 +136,8 @@ if exist "%PATCH_SCRIPT%" del /q "%PATCH_SCRIPT%"
 >>"%PATCH_SCRIPT%" echo Patch-Constant -FilePath '%RECORDER_DIR%\main.py' -VarName 'APP_NAME' -NewValue '%APP_NAME%'
 >>"%PATCH_SCRIPT%" echo Patch-Constant -FilePath '%RECORDER_DIR%\utils\backend.py' -VarName 'BASE_URL' -NewValue '%BACKEND_URL%'
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PATCH_SCRIPT%"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PATCH_SCRIPmain.py' -VarName '__version__' -NewValue '%VERSION%'
+>>"%PATCH_SCRIPT%" echo Patch-Constant -FilePath '%RECORDER_DIR%\T%"
 set "PATCH_RESULT=%ERRORLEVEL%"
 del /q "%PATCH_SCRIPT%" 2>nul
 

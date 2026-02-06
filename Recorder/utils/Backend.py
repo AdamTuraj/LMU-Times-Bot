@@ -91,3 +91,13 @@ class Backend:
         """Logout user."""
         data = self.post("user/logout", {}, token)
         return bool(data and data.get("message"))
+
+    def get_version(self):
+        """Get backend version."""
+        data = self.get("version")
+        if data and isinstance(data, dict):
+            backend_version = data.get("version", "").strip()
+            logger.info("Backend version: %s", backend_version)
+            return backend_version
+        logger.error("Failed to get backend version")
+        return False

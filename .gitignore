@@ -58,6 +58,7 @@ Thumbs.db
 # PyInstaller
 *.manifest
 *.spec
+*.bak
 
 # Database
 *.db
