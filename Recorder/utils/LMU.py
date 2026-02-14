@@ -1,5 +1,4 @@
 import logging
-import os
 import requests
 from dotenv import load_dotenv
 
@@ -68,7 +67,7 @@ class LMU:
     def get_grip_level(self):
         """Get current grip level."""
         data = self.get("rest/sessions")
-        print(data.get("SESSSET_pract1_realroad_init"))
+
         if data and "SESSSET_pract1_realroad_init" in data:
             return data["SESSSET_pract1_realroad_init"].get("currentValue")
         return None

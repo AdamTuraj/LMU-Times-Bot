@@ -1,9 +1,10 @@
+import json
 import ast
-import asyncio
 import logging
 import os
 import secrets
 import sys
+from pathlib import Path
 
 from aiohttp import ClientSession, BasicAuth
 from dotenv import load_dotenv
@@ -115,6 +116,20 @@ async def get_version(req: Request, res: Response):
         return res.status(500).json({"error": "Internal server error"})
 
     return res.json({"version": version})
+
+_car_models_path = Path(__file__).parent / "car_models.json"
+try:
+    with open(_car_models_path, "r", encoding="utf-8") as _f:
+        CAR_MODELS = json.load(_f)
+    logger.info("Loaded %d car models", len(CAR_MODELS))
+except Exception as e:
+    logger.error("Failed to load car_models.json: %s", e)
+    CAR_MODELS = {}
+
+
+@app.get("/car-models")
+async def get_car_models(req: Request, res: Response):
+    return res.json(CAR_MODELS)
 
 # Routes - Leaderboard
 @app.get("/leaderboard/{track}")

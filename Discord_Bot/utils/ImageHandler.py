@@ -32,11 +32,11 @@ BORDER_COLOR = "#333333"
 TEXT_COLOR = "#ffffff"
 
 CLASS_COLORS = {
-    "LMGT3": "#1a3a1a",
+    "GT3": "#1a3a1a",
     "GTE": "#3a2a1a",
     "LMP3": "#2a1a3a",
     "LMP2": "#1a2a3a",
-    "Hypercar": "#3a1a1a"
+    "Hyper": "#3a1a1a"
 }
 
 
@@ -86,7 +86,7 @@ def format_data(data: list[dict[str, Any]], show_technical: bool = True) -> list
     
     # Calculate class positions AFTER filtering
     class_leaders = {}
-    class_tracker = {"GT3": 0, "GTE": 0, "LMP3": 0, "LMP2": 0, "Hypercar": 0}
+    class_tracker = {"GT3": 0, "GTE": 0, "LMP3": 0, "LMP2": 0, "Hyper": 0}
     for driver in sorted_data:
         car_class = driver.get("car_class")
         class_tracker[car_class] += 1
@@ -172,7 +172,7 @@ def gen_image(data: list[list[Any]], show_technical: bool) -> io.BytesIO:
     ax.set_facecolor(BACKGROUND_COLOR)
     ax.axis("off")
 
-    col_widths = [0.04, 0.04, 0.22, 0.20, 0.10, 0.10, 0.10, 0.12, 0.10]
+    col_widths = [0.04, 0.04, 0.20, 0.24, 0.09, 0.09, 0.09, 0.11, 0.10]
 
     table = ax.table(
         cellText=df.values,

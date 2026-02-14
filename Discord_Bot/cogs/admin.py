@@ -184,7 +184,7 @@ class Admin(commands.Cog):
             "temperature": temperature,
             "rain": rain,
             "condition": condition.value,
-            "grip_level": grip.name,
+            "grip_level": grip.value,
         }
 
         embed = discord.Embed(
@@ -197,12 +197,12 @@ class Admin(commands.Cog):
         embed.add_field(name="Classes", value=", ".join(class_names), inline=False)
         embed.add_field(
             name="Weather",
-            value=f"Temp: {temperature}°C, Rain: {rain}, Condition: {self.format_condition_name(condition)}, Grip: {grip.value}",
+            value=f"Temp: {temperature}°C, Rain: {rain}%, Condition: {self.format_condition_name(condition)}, Grip: {grip.name.replace('_', ' ').title()}",
             inline=False,
         )
         embed.add_field(
             name="Show Technical",
-            value=str(show_technical),
+            value="True" if show_technical else "False",
             inline=False,
         )
 
@@ -405,13 +405,13 @@ class Admin(commands.Cog):
 
         embed.add_field(
             name="Weather",
-            value=f"Temp: {new_temperature}°C, Rain: {new_rain}, Condition: {self.format_condition_name(new_condition)}, Grip: {new_grip.name.replace('_', ' ').title()}",
+            value=f"Temp: {new_temperature}°C, Rain: {new_rain}%, Condition: {self.format_condition_name(new_condition)}, Grip: {new_grip.name.replace('_', ' ').title()}",
             inline=False,
         )
 
         embed.add_field(
             name="Show Technical",
-            value=str(new_show_technical),
+            value="True" if new_show_technical else "False",
             inline=False,
         )
 

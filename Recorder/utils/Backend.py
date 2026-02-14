@@ -92,6 +92,15 @@ class Backend:
         data = self.post("user/logout", {}, token)
         return bool(data and data.get("message"))
 
+    def get_car_models(self):
+        """Get car signature -> model name mapping from backend."""
+        data = self.get("car-models")
+        if data and isinstance(data, dict):
+            logger.info("Loaded %d car models from backend", len(data))
+            return data
+        logger.error("Failed to get car models")
+        return {}
+
     def get_version(self):
         """Get backend version."""
         data = self.get("version")

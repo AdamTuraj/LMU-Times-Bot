@@ -11,7 +11,6 @@ import keyring
 from pathlib import Path
 
 from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QApplication,
     QLabel,
@@ -230,6 +229,18 @@ class MainWindow(QMainWindow):
             msg.setWindowTitle("Version Mismatch")
             msg.setText(f"Your client version ({__version__}) does not match the latest version ({backend_version}).\n\n"
                        "Please download the latest executable.")
+            msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+            msg.exec()
+            sys.exit(1)
+        
+        # Fetch car models from backend
+        self.car_models = self.backend.get_car_models()
+        if not self.car_models:
+            logger.error("Failed to load car models from backend")
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Critical)
+            msg.setWindowTitle("Backend Error")
+            msg.setText("Failed to load car models from backend.")
             msg.setStandardButtons(QMessageBox.StandardButton.Ok)
             msg.exec()
             sys.exit(1)
@@ -475,12 +486,12 @@ class MainWindow(QMainWindow):
         if not session:
             return self.on_validation_error("Error reading session state. Waiting for session end...")  
 
-        # Get car info
-        car_info = json.loads(session["loadingStatus"]["loadingData"])["selectedCar"]["classes"]
-        if car_info[0] == "Default_Custom_Livery":
-            self.car = car_info[2].replace("_", " ")
-        else:
-            self.car = car_info[1].replace("_", " ")
+        # Get car info via signature lookup
+        selected_car = json.loads(session["loadingStatus"]["loadingData"])["selectedCar"]
+        car_sig = selected_car.get("sig", "")
+        self.car = self.car_models.get(car_sig)
+        if not self.car:
+            return self.on_validation_error(f"Unknown car (sig: {car_sig[:8]}...). Waiting for session end...")
 
         # Check practice session
         game_session = session.get("state", {}).get("gameSession")
@@ -493,6 +504,7 @@ class MainWindow(QMainWindow):
 
         if not lb_info:
             return self.on_validation_error("No leaderboard for this track. Waiting for session end...")
+        
         # Check car class
         classes = lb_info.get("classes", [])
         car_class = standings[0].get("carClass", "")
@@ -515,11 +527,12 @@ class MainWindow(QMainWindow):
             return self.on_validation_error(
                 f"Weather incorrect!\n"
                 f"Required: {get_condition_name(req.get('condition'))}, "
-                f"{req.get('temperature')}Â°C, {req.get('rain')}%\n"
+                f"{req.get('temperature')}°C, {req.get('rain')}%\n"
                 f"Slot {(bad_idx or 0) + 1}: {get_condition_name(bad['condition'])}, "
-                f"{bad['temperature']}Â°C, {bad['rain']}%"
+                f"{bad['temperature']}°C, {bad['rain']}%"
             )
         
+        # Check grip level
         grip_level = self.lmu.get_grip_level()
         required_grip = lb_info["weather"].get("grip_level")
 
