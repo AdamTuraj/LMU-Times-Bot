@@ -6,9 +6,9 @@ REM Build Recorder EXE
 REM - Reads VERSION file and prompts for confirmation
 REM - Prompts for values
 REM - Patches python constants (instead of writing .env):
-REM     Recorder\main.py           __version__ = "<VERSION>"
+REM     Recorder\config.py         __version__ = "<VERSION>"
+REM     Recorder\config.py         APP_NAME = "<APP_NAME>"
 REM     Recorder\utils\lmu.py      BASE_URL = "<LMU_URL>"
-REM     Recorder\main.py           APP_NAME = "<APP_NAME>"
 REM     Recorder\utils\backend.py  BASE_URL = "<BACKEND_URL>"
 REM - Creates/uses Recorder\.venv
 REM - Installs requirements.txt (+ pyinstaller)
@@ -81,6 +81,11 @@ if not exist "%RECORDER_DIR%\main.py" (
     exit /b 1
 )
 
+if not exist "%RECORDER_DIR%\config\settings.py" (
+    echo Error: config\settings.py not found in "%RECORDER_DIR%\config"
+    exit /b 1
+)
+
 if not exist "%RECORDER_DIR%\utils\lmu.py" (
     echo Error: utils\lmu.py not found in "%RECORDER_DIR%\utils"
     exit /b 1
@@ -101,7 +106,7 @@ echo.
 echo Patching Python constants...
 
 REM Check if files have already been patched by looking for .bak files
-if exist "%RECORDER_DIR%\utils\lmu.py.bak" (
+if exist "%RECORDER_DIR%\config\settings.py.bak" (
     echo.
     echo Error: Recorder files appear to already be patched ^(.bak files exist^).
     echo Please revert the Recorder files before running this script again.
@@ -133,8 +138,8 @@ if exist "%PATCH_SCRIPT%" del /q "%PATCH_SCRIPT%"
 >>"%PATCH_SCRIPT%" echo }
 >>"%PATCH_SCRIPT%" echo.
 >>"%PATCH_SCRIPT%" echo Patch-Constant -FilePath '%RECORDER_DIR%\utils\lmu.py' -VarName 'BASE_URL' -NewValue '%LMU_URL%'
->>"%PATCH_SCRIPT%" echo Patch-Constant -FilePath '%RECORDER_DIR%\main.py' -VarName 'APP_NAME' -NewValue '%APP_NAME%'
->>"%PATCH_SCRIPT%" echo Patch-Constant -FilePath '%RECORDER_DIR%\main.py' -VarName '__version__' -NewValue '%VERSION%'
+>>"%PATCH_SCRIPT%" echo Patch-Constant -FilePath '%RECORDER_DIR%\config\settings.py' -VarName 'APP_NAME' -NewValue '%APP_NAME%'
+>>"%PATCH_SCRIPT%" echo Patch-Constant -FilePath '%RECORDER_DIR%\config\settings.py' -VarName '__version__' -NewValue '%VERSION%'
 >>"%PATCH_SCRIPT%" echo Patch-Constant -FilePath '%RECORDER_DIR%\utils\backend.py' -VarName 'BASE_URL' -NewValue '%BACKEND_URL%'
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "%PATCH_SCRIPT%"

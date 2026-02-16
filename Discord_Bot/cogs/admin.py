@@ -1,3 +1,25 @@
+# MIT License
+#
+# Copyright (c) 2026 Adam Turaj
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import ast
 import logging
 import os
@@ -7,8 +29,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from utils.Database import DatabaseError
-from utils.Types import Classes, Tracks, WeatherConditions, GripLevel
+from utils.database import DatabaseError
+from utils.types import Classes, Tracks, WeatherConditions, GripLevel
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +141,9 @@ class Admin(commands.Cog):
         track: Tracks,
         classes: str,
         channel: discord.TextChannel,
-        show_technical: bool = False,
+        tod: str,
+        show_technical: bool = True,
+        fixed_setup: bool = False,
         temperature: float = 25.0,
         rain: float = 0.0,
         condition: WeatherConditions = WeatherConditions.CLEAR,
@@ -135,8 +159,12 @@ class Admin(commands.Cog):
             Comma-separated list of class names (LMGT3, GTE, LMP3, LMP2, LMP2_UNRESTRICTED, HYPERCAR).
         channel: discord.TextChannel
             The Discord channel to post the leaderboard in.
+        tod: str
+            Time of day (e.g., "06:00", "12:00", "18:00").
         show_technical: bool
-            Whether to show technical lap times (default: False).
+            Whether to show technical lap times (default: True).
+        fixed_setup: bool
+            Whether this leaderboard requires a fixed setup (default: False).
         temperature: float
             Temperature setting (default: 25.0).
         rain: float
@@ -179,6 +207,16 @@ class Admin(commands.Cog):
         if error:
             await interaction.response.send_message(error, ephemeral=True)
             return
+        
+        tod = tod.strip().split(":")
+        if len(tod) != 2 or not all(part.isdigit() for part in tod):
+            await interaction.response.send_message(
+                "Invalid time of day format. Please use HH:MM (e.g., 06:00).",
+                ephemeral=True,
+            )
+            return
+        
+        tod_minutes = int(tod[0]) * 60 + int(tod[1])
 
         weather = {
             "temperature": temperature,
@@ -201,8 +239,18 @@ class Admin(commands.Cog):
             inline=False,
         )
         embed.add_field(
+            name="Time of Day",
+            value=f"{tod_minutes // 60:02d}:{tod_minutes % 60:02d}",
+            inline=False,
+        )
+        embed.add_field(
             name="Show Technical",
             value="True" if show_technical else "False",
+            inline=False,
+        )
+        embed.add_field(
+            name="Fixed Setup",
+            value="True" if fixed_setup else "False",
             inline=False,
         )
 
@@ -216,7 +264,7 @@ class Admin(commands.Cog):
             )
         elif view.value:
             await self.bot.database.add_leaderboard(
-                track.value, channel.id, weather, class_ids, show_technical
+                track.value, channel.id, weather, class_ids, show_technical, tod_minutes, fixed_setup
             )
             logger.info(
                 "Leaderboard for track %s added by user %s",
@@ -295,10 +343,12 @@ class Admin(commands.Cog):
         classes: Optional[str] = None,
         channel: Optional[discord.TextChannel] = None,
         show_technical: Optional[bool] = None,
+        fixed_setup: Optional[bool] = None,
         temperature: Optional[float] = None,
         rain: Optional[float] = None,
         condition: Optional[WeatherConditions] = None,
         grip: Optional[GripLevel] = None,
+        tod: Optional[str] = None,
     ) -> None:
         """Edit an existing leaderboard for a track.
 
@@ -312,6 +362,8 @@ class Admin(commands.Cog):
             The Discord channel for the leaderboard.
         show_technical: Optional[bool] = None,
             Whether to show technical lap times.
+        fixed_setup: Optional[bool] = None,
+            Whether this leaderboard requires a fixed setup.
         temperature: float
             Temperature setting.
         rain: float
@@ -320,6 +372,8 @@ class Admin(commands.Cog):
             Weather condition.
         grip: GripLevel
             Grip level.
+        tod: str
+            Time of day (e.g., "06:00", "12:00", "18:00").
         """
 
         if not await self.is_event_admin(interaction):
@@ -343,7 +397,8 @@ class Admin(commands.Cog):
             )
             return
 
-        _track_name, current_channel_id, weather_str, classes_str, current_show_technical = leaderboard
+        _track_name, current_channel_id, weather_str, classes_str, current_show_technical, current_tod, current_fixed_setup = leaderboard[:7]
+
         try:
             current_weather = ast.literal_eval(weather_str)
             current_class_ids = ast.literal_eval(classes_str)
@@ -358,6 +413,7 @@ class Admin(commands.Cog):
         new_channel_id = channel.id if channel else current_channel_id
         new_class_ids = current_class_ids
         new_show_technical = show_technical if show_technical is not None else current_show_technical
+        new_fixed_setup = fixed_setup if fixed_setup is not None else current_fixed_setup
 
         if classes is not None:
             _class_names, new_class_ids, error = self.parse_classes(classes)
@@ -379,6 +435,26 @@ class Admin(commands.Cog):
         new_rain = rain if rain is not None else current_weather.get('rain', 0.0)
         new_condition = condition if condition is not None else WeatherConditions(current_weather.get('condition', 0))
         new_grip = grip if grip is not None else GripLevel(current_weather.get('grip_level', 5))
+
+        # Handle TOD parsing
+        new_tod_minutes = current_tod
+        if tod is not None:
+            tod_parts = tod.strip().split(":")
+            if len(tod_parts) != 2 or not all(part.isdigit() for part in tod_parts):
+                await interaction.response.send_message(
+                    "Invalid time format. Please use HH:MM format (e.g., \"06:00\", \"12:00\", \"18:00\").",
+                    ephemeral=True,
+                )
+                return
+
+            hours, minutes = int(tod_parts[0]), int(tod_parts[1])
+            if not (0 <= hours < 24 and 0 <= minutes < 60):
+                await interaction.response.send_message(
+                    "Invalid time. Hours must be 0-23 and minutes must be 0-59.",
+                    ephemeral=True,
+                )
+                return
+            new_tod_minutes = hours * 60 + minutes
 
         new_weather = {
             'temperature': new_temperature,
@@ -410,8 +486,19 @@ class Admin(commands.Cog):
         )
 
         embed.add_field(
+            name="Time of Day",
+            value=f"{new_tod_minutes // 60:02d}:{new_tod_minutes % 60:02d}",
+            inline=False,
+        )
+
+        embed.add_field(
             name="Show Technical",
             value="True" if new_show_technical else "False",
+            inline=False,
+        )
+        embed.add_field(
+            name="Fixed Setup",
+            value="True" if new_fixed_setup else "False",
             inline=False,
         )
 
@@ -425,7 +512,7 @@ class Admin(commands.Cog):
             )
         elif view.value:
             await self.bot.database.add_leaderboard(
-                track.value, new_channel_id, new_weather, new_class_ids, new_show_technical
+                track.value, new_channel_id, new_weather, new_class_ids, new_show_technical, new_tod_minutes, new_fixed_setup
             )
             logger.info(
                 "Leaderboard for track %s edited by user %s",
@@ -507,13 +594,14 @@ class Admin(commands.Cog):
         )
 
         for lb in leaderboards:
-            track, channel_id, weather_str, classes_str, show_technical = lb
+            track, channel_id, weather_str, classes_str, show_technical, tod, fixed_setup = lb
             track_display = (
                 Tracks[track].value if track in Tracks.__members__ else track
             )
             channel = self.bot.get_channel(channel_id)
             channel_str = channel.mention if channel else f"ID: {channel_id}"
             show_technical_display = "True" if show_technical else "False"
+            tod_display = f"{tod // 60:02d}:{tod % 60:02d}"
             
             try:
                 weather = ast.literal_eval(weather_str)
@@ -541,8 +629,10 @@ class Admin(commands.Cog):
                 value=(
                     f"Channel: {channel_str}\n"
                     f"Weather: {weather_display}\n"
+                    f"Time of Day: {tod_display}\n"
                     f"Classes: {classes_display}\n"
-                    f"Show Technical: {show_technical_display}"
+                    f"Show Technical: {show_technical_display}\n"
+                    f"Fixed Setup: {'True' if fixed_setup else 'False'}"
                 ),
                 inline=False,
             )
@@ -577,7 +667,7 @@ class Admin(commands.Cog):
             )
             return
 
-        _track_name, _channel_id, weather_str, classes_str, _show_technical = leaderboard
+        _track_name, _channel_id, weather_str, classes_str, _show_technical, tod, fixed_setup = leaderboard
 
         try:
             weather = ast.literal_eval(weather_str)
@@ -615,9 +705,20 @@ class Admin(commands.Cog):
             f"- Temperature: {round(weather.get('temperature', 'N/A'))}°C\n"
             f"- Rain: {round(weather.get('rain', 'N/A'))}%\n"
             f"- Condition: {condition_name}\n"
-            f"- Grip Level: {grip_level}"
+            f"- Grip Level: {grip_level}\n"
+            f"- Time of Day: {tod // 60:02d}:{tod % 60:02d}"
         )
         embed.add_field(name="Weather", value=weather_text, inline=False)
+
+        if fixed_setup:
+            embed.add_field(
+                name="Fixed Setup",
+                value=(
+                    "This session will require a fixed setup. "
+                    "Make sure to use the default LMU setup (not CDA)"
+                ),
+                inline=False,
+            )
 
         embed.add_field(
             name="Important",

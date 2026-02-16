@@ -1,3 +1,25 @@
+# MIT License
+#
+# Copyright (c) 2026 Adam Turaj
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import logging
 import aiosqlite
 
@@ -36,7 +58,9 @@ class Database:
                 discord_channel INTEGER NOT NULL,
                 weather TEXT NOT NULL,
                 classes INTEGER DEFAULT 1,
-                show_technical BOOLEAN DEFAULT 0
+                show_technical BOOLEAN DEFAULT 1,
+                tod INTEGER DEFAULT 0,
+                fixed_setup BOOLEAN DEFAULT 0
             )
         """)
 
@@ -106,19 +130,21 @@ class Database:
             logger.error("Error removing user: %s", e)
             raise DatabaseError(f"Error removing user: {e}")
 
-    async def add_leaderboard(self, track, discord_channel, weather, classes, show_technical):
+    async def add_leaderboard(self, track, discord_channel, weather, classes, show_technical, tod, fixed_setup):
         try:
             await self.conn.execute(
                 """
-                INSERT INTO leaderboards (track, discord_channel, weather, classes, show_technical) 
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO leaderboards (track, discord_channel, weather, classes, show_technical, tod, fixed_setup) 
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(track) DO UPDATE SET 
                     discord_channel = excluded.discord_channel,
                     weather = excluded.weather,
                     classes = excluded.classes,
-                    show_technical = excluded.show_technical
+                    show_technical = excluded.show_technical,
+                    tod = excluded.tod,
+                    fixed_setup = excluded.fixed_setup
                 """,
-                (track, discord_channel, str(weather), str(classes), show_technical)
+                (track, discord_channel, str(weather), str(classes), show_technical, tod, fixed_setup)
             )
             await self.conn.commit()
             logger.info("Saved leaderboard for track: %s", track)

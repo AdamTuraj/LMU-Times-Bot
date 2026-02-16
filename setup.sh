@@ -247,4 +247,4 @@ venv_install_requirements "./Backend" "$PYTHON_BIN"
 venv_install_requirements "./Discord Bot" "$PYTHON_BIN"
 
 echo
-echo "✅ Done."
+echo "Done."

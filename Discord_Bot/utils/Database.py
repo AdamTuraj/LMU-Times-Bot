@@ -1,3 +1,25 @@
+# MIT License
+#
+# Copyright (c) 2026 Adam Turaj
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import logging
 from typing import Any, Optional
 
@@ -54,7 +76,9 @@ class Database:
                     discord_channel INTEGER NOT NULL,
                     weather TEXT NOT NULL,
                     classes INTEGER DEFAULT 1,
-                    show_technical BOOLEAN DEFAULT 0
+                    show_technical BOOLEAN DEFAULT 0,
+                    tod INTEGER DEFAULT 0,
+                    fixed_setup BOOLEAN DEFAULT 0
                 )
             """)
 
@@ -103,7 +127,9 @@ class Database:
         discord_channel: int,
         weather: dict[str, Any],
         classes: list[int],
-        show_technical: bool = False
+        show_technical: bool = False,
+        tod: int = 0,
+        fixed_setup: bool = False
     ) -> None:
         """Add or update a leaderboard entry."""
         if not self._conn:
@@ -113,15 +139,17 @@ class Database:
             logger.info("Adding leaderboard for track '%s'", track)
             await self._conn.execute(
                 """
-                INSERT INTO leaderboards (track, discord_channel, weather, classes, show_technical) 
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO leaderboards (track, discord_channel, weather, classes, show_technical, tod, fixed_setup) 
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(track) DO UPDATE SET 
                     discord_channel = excluded.discord_channel,
                     weather = excluded.weather,
                     classes = excluded.classes,
-                    show_technical = excluded.show_technical
+                    show_technical = excluded.show_technical,
+                    tod = excluded.tod,
+                    fixed_setup = excluded.fixed_setup
                 """,
-                (track, discord_channel, str(weather), str(classes), show_technical)
+                (track, discord_channel, str(weather), str(classes), show_technical, tod, fixed_setup)
             )
             await self._conn.commit()
             logger.info("Leaderboard for track '%s' saved successfully", track)

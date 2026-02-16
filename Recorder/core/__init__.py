@@ -20,26 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import sys
+from .session_validator import SessionValidator
+from .session_recorder import SessionRecorder
 
-from PyQt6.QtWidgets import QApplication
-
-from config.settings import APP_NAME
-from config.helpers import logger
-from ui.main_window import MainWindow
-
-
-def main():
-    """Application entry point."""
-    logger.info("=" * 50)
-    logger.info("Starting %s", APP_NAME)
-    logger.info("=" * 50)
-
-    app = QApplication(sys.argv)
-    window = MainWindow()
-    window.show()
-    return app.exec()
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+__all__ = ['SessionValidator', 'SessionRecorder']
