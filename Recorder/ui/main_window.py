@@ -25,7 +25,7 @@ import sys
 import threading
 import webbrowser
 
-from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtCore import pyqtSignal, Qt, QSettings
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QApplication,
@@ -36,7 +36,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSystemTrayIcon,
     QVBoxLayout,
-    QWidget,
+    QWidget
 )
 
 from config.settings import (
@@ -57,6 +57,7 @@ from config.helpers import (
     get_token,
 )
 from ui.ui_styles import get_stylesheet
+from ui.load_session_popup import LoadSessionPopup
 from utils.backend import Backend
 from utils.lmu import LMU
 from utils.token_server import LocalCallbackServer
@@ -71,6 +72,7 @@ class MainWindow(QMainWindow):
     show_record_dialog = pyqtSignal(dict)
     update_status_signal = pyqtSignal(str)
     add_session_button_signal = pyqtSignal(str)
+    add_check_lb_button_signal = pyqtSignal()
     remove_session_button_signal = pyqtSignal()
     show_window_signal = pyqtSignal()
 
@@ -90,6 +92,12 @@ class MainWindow(QMainWindow):
                 logger.warning("Failed to load embedded icon - using default")
         except Exception as e:
             logger.warning("Error loading embedded icon: %s", e)
+
+        # Dialogs
+        self.load_session_popup = LoadSessionPopup()
+
+        # Settings
+        self.settings = QSettings("LMU Times Bot", "Recorder")
 
         # Initialize clients
         self.backend = Backend()
@@ -118,6 +126,7 @@ class MainWindow(QMainWindow):
         self.car = None
         self.setup_session_button_track = None
         self.session_button = None
+        self.check_for_setup_session = False
 
         # Try to restore session
         self._restore_session()
@@ -140,6 +149,7 @@ class MainWindow(QMainWindow):
         self.show_record_dialog.connect(self.on_show_record_dialog)
         self.update_status_signal.connect(self.on_update_status)
         self.add_session_button_signal.connect(self.on_add_session_button)
+        self.add_check_lb_button_signal.connect(self.check_for_leaderboard)
         self.remove_session_button_signal.connect(self.on_remove_session_button)
         self.show_window_signal.connect(self.on_show_window)
 
@@ -337,6 +347,35 @@ class MainWindow(QMainWindow):
         self.layout.insertWidget(self.layout.count() - 1, setup_session_btn)
         self.session_button = setup_session_btn
 
+    def add_check_leaderboard_button(self):
+        """Add a button to check for leaderboard (thread-safe via signal)."""
+        self.add_check_lb_button_signal.emit()
+
+    def check_for_leaderboard(self):
+        """When pressed, checks current track for leaderboard and adds setup button if found."""
+        check_button = QPushButton("Check for Leaderboard")
+        check_button.setMinimumHeight(32)
+        check_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        check_button.clicked.connect(self.on_check_for_leaderboard)
+        self.layout.insertWidget(self.layout.count() - 1, check_button)
+        self.session_button = check_button
+
+    def on_check_for_leaderboard(self):
+        """Handle check for leaderboard button press."""
+        lb_info = self.check_track_for_lb()
+        self.remove_session_button()
+        if lb_info:
+            self.update_status("Click the button below to setup the session for recording.")
+            
+
+            self.add_setup_session_button(lb_info["track"])
+            self.setup_session_button_track = lb_info
+
+            self.check_for_setup_session = True
+        else:
+            self.update_status("LMU Connected. No track with leaderboard detected. Please select a track with a leaderboard.")
+            self.check_for_setup_session = True
+
     def remove_session_button(self):
         """Remove session button (thread-safe via signal)."""
         self.remove_session_button_signal.emit()
@@ -428,13 +467,16 @@ class MainWindow(QMainWindow):
             self.setup_session_button_track["tod"]
         )
 
-
         if res is not None:
             play_error_sound()
             return self.update_status(f"Failed to setup session. Reason: {res}.")
 
-        self.remove_session_button()
-        self.update_status("Session setup successfully! Changes may not be visible until you enter a different menu. Do not make any changes to the session settings. Waiting for session start...")
+        self.update_status("Session setup successfully! Waiting for session start...")
+
+        dont_show_popup = self.settings.value("dont_show_load_session_popup", False, type=bool)
+        if not dont_show_popup:
+            self.load_session_popup.exec()
+
 
     def check_track_for_lb(self):
         """Check if current track has a leaderboard."""
@@ -468,6 +510,7 @@ class MainWindow(QMainWindow):
         self.update_status("LMU connected. Waiting for session...")
 
         self.track = None  # Reset track to detect new session
+        self.add_check_leaderboard_button()
 
         while True:
             state = self.lmu.get_session_info()
@@ -482,16 +525,14 @@ class MainWindow(QMainWindow):
                 logger.info("Session started")
                 self.update_status("Session started!")
                 break
-            else:
+            elif self.check_for_setup_session:
                 track = self.check_track_for_lb()
 
                 if track:
                     logger.info("Track with LB detected: %s", track["track"])
 
                     self.update_status("Click the button below to setup the session for recording.")
-                    
-                    play_info_sound()
-                    self.show_from_tray()
+        
                     self.remove_session_button()
                     
                     self.add_setup_session_button(track["track"])

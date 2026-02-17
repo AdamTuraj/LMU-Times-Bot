@@ -300,7 +300,7 @@ echo   Name: !APP_NAME!
 echo   Icon: icon.ico
 echo.
 
-pyinstaller --onefile --windowed --icon=icon.ico --name "!APP_NAME!" main.py
+pyinstaller --onefile --windowed --icon=icon.ico --add-data "images/setup_session_instructions.jpg;." --name "!APP_NAME!" main.py
 if errorlevel 1 (
     echo.
     echo Error: PyInstaller build failed.
