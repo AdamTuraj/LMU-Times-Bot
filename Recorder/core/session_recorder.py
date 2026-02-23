@@ -72,20 +72,6 @@ class SessionRecorder:
                 state = self.lmu.get_standings()
                 session_state = self.lmu.get_session_info()
 
-                # Check fixed setup
-                if fixed_setup:
-                    setup = self.lmu.get_active_setup()
-                    if not setup:
-                        on_error("Error reading setup. Trying again...")
-                        continue
-                    if "Balanced" not in setup.get("activeSetup", "") and is_on_fixed: # A pretty bad way to check for default LMU setup. Maybe I'll implement a better way in the future but this is mainly to prevent someone from being naive.
-                        on_error("Fixed setup required! Please switch to the default LMU setup (not CDA) to record.")
-                        is_on_fixed = False
-                        continue
-                    elif "Balanced" in setup.get("activeSetup", "") and not is_on_fixed:
-                        on_error("Thank you for switching to the default LMU setup! Resuming recording.")
-                        is_on_fixed = True
-
                 # Check if session ended
                 if not session_state.get("inControlOfVehicle", False):
                     logger.info("Session ended during recording")
@@ -105,6 +91,20 @@ class SessionRecorder:
                 if state is None:
                     threading.Event().wait(POLL_INTERVAL)
                     continue
+
+                # Check fixed setup
+                if fixed_setup:
+                    setup = self.lmu.get_active_setup()
+                    if not setup:
+                        on_error("Error reading setup. Trying again...")
+                        continue
+                    if "Balanced" not in setup.get("activeSetup", "") and is_on_fixed: # A pretty bad way to check for default LMU setup. Maybe I'll implement a better way in the future but this is mainly to prevent someone from being naive.
+                        on_error("Fixed setup required! Please switch to the default LMU setup (not CDA) to record.")
+                        is_on_fixed = False
+                        continue
+                    elif "Balanced" in setup.get("activeSetup", "") and not is_on_fixed:
+                        on_error("Thank you for switching to the default LMU setup! Resuming recording.")
+                        is_on_fixed = True
 
                 # Get lap data
                 lap = state[0].get("bestLapTime")

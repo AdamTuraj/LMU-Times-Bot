@@ -577,6 +577,8 @@ class MainWindow(QMainWindow):
         """Validate session and prepare for recording."""
         logger.info("Launching session handler")
 
+        self.remove_session_button()
+
         # Use validator to check all conditions
         success, error_msg, lb_info, car, track = self.validator.validate_session(
             self.update_status
