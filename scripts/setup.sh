@@ -166,10 +166,12 @@ EOF
 }
 
 # ---------- Start ----------
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_ROOT"
+
 require_dir "./Backend"
 require_dir "./Discord Bot"
-
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PYTHON_BIN="$(pick_python)"
 install_venv_support_if_needed "$PYTHON_BIN"
 

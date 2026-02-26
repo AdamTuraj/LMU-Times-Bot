@@ -20,12 +20,15 @@ REM ---------- Read and confirm version ----------
 set "SCRIPT_DIR=%~dp0"
 if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 
-if not exist "%SCRIPT_DIR%\VERSION" (
-    echo Error: VERSION file not found: "%SCRIPT_DIR%\VERSION"
+REM Project root is one level up from scripts/
+for %%I in ("%SCRIPT_DIR%\..") do set "PROJECT_ROOT=%%~fI"
+
+if not exist "%PROJECT_ROOT%\VERSION" (
+    echo Error: VERSION file not found: "%PROJECT_ROOT%\VERSION"
     exit /b 1
 )
 
-set /p VERSION=<"%SCRIPT_DIR%\VERSION"
+set /p VERSION=<"%PROJECT_ROOT%\VERSION"
 set "VERSION=!VERSION: =!"
 
 if "!VERSION!"=="" (
@@ -63,7 +66,7 @@ set /p "LMU_URL=LMU local API URL [default: %DEFAULT_LMU_URL%]: "
 if "!LMU_URL!"=="" set "LMU_URL=%DEFAULT_LMU_URL%"
 
 REM ---------- Resolve directories ----------
-set "RECORDER_DIR=%SCRIPT_DIR%\Recorder"
+set "RECORDER_DIR=%PROJECT_ROOT%\Recorder"
 
 REM ---------- Validate paths ----------
 if not exist "%RECORDER_DIR%\" (
@@ -71,8 +74,8 @@ if not exist "%RECORDER_DIR%\" (
     exit /b 1
 )
 
-if not exist "%SCRIPT_DIR%\icon.ico" (
-    echo Error: icon.ico not found next to this script: "%SCRIPT_DIR%\icon.ico"
+if not exist "%PROJECT_ROOT%\icon.ico" (
+    echo Error: icon.ico not found in the project root: "%PROJECT_ROOT%\icon.ico"
     exit /b 1
 )
 
@@ -178,7 +181,7 @@ if exist "%EMBED_SCRIPT%" del /q "%EMBED_SCRIPT%"
 >>"%EMBED_SCRIPT%" echo import base64
 >>"%EMBED_SCRIPT%" echo import sys
 >>"%EMBED_SCRIPT%" echo.
->>"%EMBED_SCRIPT%" echo icon_path = r'%SCRIPT_DIR%\icon.ico'
+>>"!EMBED_SCRIPT!" echo icon_path = r'%PROJECT_ROOT%\icon.ico'
 >>"%EMBED_SCRIPT%" echo resources_path = r'%RESOURCES_PY%'
 >>"%EMBED_SCRIPT%" echo.
 >>"%EMBED_SCRIPT%" echo try:
@@ -286,7 +289,7 @@ if errorlevel 1 (
 )
 
 REM ---------- Copy icon ----------
-copy /y "%SCRIPT_DIR%\icon.ico" "%CD%\icon.ico" >nul
+copy /y "%PROJECT_ROOT%\icon.ico" "%CD%\icon.ico" >nul
 if errorlevel 1 (
     echo Error: Failed to copy icon.ico into Recorder.
     exit /b 1

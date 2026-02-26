@@ -8,7 +8,8 @@ A timing system for Le Mans Ultimate (LMU) that records lap times with a Discord
 LMU Times Bot/
 ├── Backend/        # API server for storing and retrieving timing data
 ├── Discord Bot/    # Discord bot for interacting with timing data
-└── Recorder/       # Application that captures lap times from LMU
+├── Recorder/       # Application that captures lap times from LMU
+└── scripts/        # Build and setup scripts
 ```
 
 ## Requirements
@@ -38,8 +39,8 @@ Clone the repository and run the setup script:
 ```bash
 git clone https://github.com/AdamTuraj/LMU-Times-Bot.git
 cd "LMU-Times-Bot"
-chmod +x setup.sh
-./setup.sh
+chmod +x scripts/setup.sh
+./scripts/setup.sh
 ```
 
 The setup script will:
@@ -58,7 +59,7 @@ To build the Windows client-side recorder executable on a Windows machine:
 3. Run the build script:
 
 ```powershell
-.\build.bat
+.\scripts\build.bat
 ```
 
 After entering the required configuration data, the recorder executable will be generated in the `Recorder\dist` directory.
