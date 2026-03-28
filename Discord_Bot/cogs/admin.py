@@ -168,7 +168,7 @@ class Admin(commands.Cog):
         temperature: float
             Temperature setting (default: 25.0).
         rain: float
-            Rain intensity (default: 0.0).
+            Rain intensity as a percentage (default: 0.0).
         condition: WeatherConditions
             Weather condition (default: CLEAR).
         grip: GripLevel
