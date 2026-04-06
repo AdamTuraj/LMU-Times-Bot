@@ -91,4 +91,5 @@ TRACK_NAMES = {
     "SEBRINGWEC": "Sebring International Raceway",
     "SEBRINGWEC_SCHOOL": "Sebring School Circuit",
     "SILVERSTONEELMS": "Silverstone",
+    "BARCELONAELMS": "Circuit de Barcelona-Catalunya",
 }
