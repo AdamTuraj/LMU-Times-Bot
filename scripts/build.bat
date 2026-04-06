@@ -108,14 +108,6 @@ REM ---------- Patch Python constants using PowerShell ----------
 echo.
 echo Patching Python constants...
 
-REM Check if files have already been patched by looking for .bak files
-if exist "%RECORDER_DIR%\config\settings.py.bak" (
-    echo.
-    echo Error: Recorder files appear to already be patched ^(.bak files exist^).
-    echo Please revert the Recorder files before running this script again.
-    exit /b 1
-)
-
 REM Create a temporary PowerShell script
 set "PATCH_SCRIPT=%TEMP%\patch_constants_%RANDOM%.ps1"
 if exist "%PATCH_SCRIPT%" del /q "%PATCH_SCRIPT%"
@@ -127,7 +119,6 @@ if exist "%PATCH_SCRIPT%" del /q "%PATCH_SCRIPT%"
 >>"%PATCH_SCRIPT%" echo.
 >>"%PATCH_SCRIPT%" echo     if (-not (Test-Path $FilePath)) { throw "File not found: $FilePath" }
 >>"%PATCH_SCRIPT%" echo.
->>"%PATCH_SCRIPT%" echo     Copy-Item $FilePath "$FilePath.bak" -Force
 >>"%PATCH_SCRIPT%" echo     $content = Get-Content $FilePath -Raw
 >>"%PATCH_SCRIPT%" echo.
 >>"%PATCH_SCRIPT%" echo     $pattern = '(?m)^(\s*' + [regex]::Escape($VarName) + '\s*=\s*)([''"])(.+?)\2'
@@ -151,7 +142,7 @@ del /q "%PATCH_SCRIPT%" 2>nul
 
 if not "%PATCH_RESULT%"=="0" (
     echo.
-    echo Error: Failed to patch one or more files. Backups saved as .bak
+    echo Error: Failed to patch one or more files.
     echo Please revert the Recorder files before running this script again.
     exit /b 1
 )
