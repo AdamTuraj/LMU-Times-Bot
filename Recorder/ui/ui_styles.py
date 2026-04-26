@@ -42,6 +42,82 @@ def get_stylesheet():
             padding: 10px;
             color: #333;
         }
+        QLabel#fieldLabel {
+            color: #555;
+            font-size: 9pt;
+            padding: 2px 4px 0 4px;
+        }
+        QLabel#loginTitle {
+            color: #1f2937;
+            font-size: 18pt;
+            font-weight: 700;
+            padding: 0;
+        }
+        QLabel#loginSubtitle {
+            color: #4b5563;
+            font-size: 9.5pt;
+            padding: 4px 16px;
+            max-width: 320px;
+        }
+        QLabel#loginStatus {
+            color: #6b7280;
+            font-size: 8.5pt;
+            padding: 2px;
+        }
+        QComboBox {
+            background-color: white;
+            border: 1px solid #d6d6d6;
+            border-radius: 5px;
+            padding: 6px 8px;
+            min-height: 26px;
+            color: #2c2c2c;
+            selection-background-color: #0b6cff;
+            selection-color: white;
+        }
+        QComboBox:hover {
+            border-color: #9ca3af;
+        }
+        QComboBox::drop-down {
+            border: none;
+            width: 24px;
+        }
+        QComboBox QAbstractItemView {
+            background-color: white;
+            border: 1px solid #9ca3af;
+            color: #1f2937;
+            outline: none;
+            selection-background-color: #0b6cff;
+            selection-color: white;
+        }
+        QComboBox QAbstractItemView::item {
+            min-height: 26px;
+            padding: 5px 8px;
+            color: #1f2937;
+            background-color: white;
+        }
+        QComboBox QAbstractItemView::item:hover {
+            background-color: #eaf2ff;
+            color: #111827;
+        }
+        QComboBox QAbstractItemView::item:selected {
+            background-color: #0b6cff;
+            color: white;
+        }
+        QComboBox:disabled {
+            color: #777;
+            background-color: #eeeeee;
+        }
+        QProgressBar {
+            border: 1px solid #d6d6d6;
+            border-radius: 5px;
+            background-color: white;
+            min-height: 8px;
+            max-height: 8px;
+        }
+        QProgressBar::chunk {
+            background-color: #0078d4;
+            border-radius: 4px;
+        }
         QPushButton {
             background-color: #0078d4;
             color: white;
@@ -58,6 +134,10 @@ def get_stylesheet():
         QPushButton:pressed {
             background-color: #005a9e;
         }
+        QPushButton:disabled {
+            background-color: #a6a6a6;
+            color: #f4f4f4;
+        }
         QPushButton#secondaryButton {
             background-color: #6c757d;
         }
@@ -68,15 +148,15 @@ def get_stylesheet():
             background-color: #4e555b;
         }
         QPushButton#loginButton {
-            background-color: #5865f2;
+            background-color: #334155;
             font-size: 11pt;
             min-height: 36px;
             padding: 8px 18px;
         }
         QPushButton#loginButton:hover {
-            background-color: #4752c4;
+            background-color: #1f2937;
         }
         QPushButton#loginButton:pressed {
-            background-color: #3c45a5;
+            background-color: #111827;
         }
     """

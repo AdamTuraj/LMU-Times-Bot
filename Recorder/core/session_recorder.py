@@ -72,6 +72,17 @@ class SessionRecorder:
                 state = self.lmu.get_standings()
                 session_state = self.lmu.get_session_info()
 
+                if session_state is False:
+                    logger.warning("LMU disconnected during recording")
+                    update_callback("Waiting for LMU...")
+                    self.is_recording = False
+                    on_disconnect()
+                    return
+
+                if not isinstance(session_state, dict):
+                    threading.Event().wait(POLL_INTERVAL)
+                    continue
+
                 # Check if session ended
                 if not session_state.get("inControlOfVehicle", False):
                     logger.info("Session ended during recording")

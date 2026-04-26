@@ -162,6 +162,14 @@ class Database:
             logger.error("Error fetching leaderboard: %s", e)
             raise DatabaseError(f"Error fetching leaderboard: {e}")
 
+    async def get_all_leaderboards(self):
+        try:
+            async with self.conn.execute("SELECT * FROM leaderboards ORDER BY track") as cursor:
+                return await cursor.fetchall()
+        except aiosqlite.Error as e:
+            logger.error("Error fetching leaderboards: %s", e)
+            raise DatabaseError(f"Error fetching leaderboards: {e}")
+
     async def submit_lap_time(self, track, user_id, driver_name, car, car_class, time_data):
         try:
             new_lap = time_data.get("lap")

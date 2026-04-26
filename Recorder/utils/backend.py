@@ -94,6 +94,13 @@ class Backend:
             return data
         return None
 
+    def get_leaderboards(self):
+        """Get all active leaderboards."""
+        data = self.get("leaderboards")
+        if isinstance(data, list):
+            return data
+        return []
+
     def submit_time(self, token, time_data, track, car, class_, driver_name):
         """Submit a lap time."""
         logger.info("Submitting time %.3f for %s", time_data["lap"], track)

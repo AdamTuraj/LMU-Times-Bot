@@ -20,7 +20,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from .session_validator import SessionValidator
 from .session_recorder import SessionRecorder
 
-__all__ = ['SessionValidator', 'SessionRecorder']
+__all__ = ['SessionRecorder']

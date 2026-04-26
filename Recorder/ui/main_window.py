@@ -25,14 +25,16 @@ import sys
 import threading
 import webbrowser
 
-from PyQt6.QtCore import pyqtSignal, Qt, QSettings
+from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QApplication,
+    QComboBox,
     QLabel,
     QMainWindow,
     QMenu,
     QMessageBox,
+    QProgressBar,
     QPushButton,
     QSystemTrayIcon,
     QVBoxLayout,
@@ -42,6 +44,7 @@ from PyQt6.QtWidgets import (
 from config.settings import (
     __version__,
     APP_NAME,
+    CAR_CLASS_NAMES,
     OAUTH_CALLBACK_PORT,
     POLL_INTERVAL,
     TRACK_NAMES,
@@ -49,7 +52,6 @@ from config.settings import (
 from config.helpers import (
     logger,
     flash_window,
-    play_info_sound,
     play_error_sound,
     hide_to_tray,
     save_token,
@@ -57,30 +59,31 @@ from config.helpers import (
     get_token,
 )
 from ui.ui_styles import get_stylesheet
-from ui.load_session_popup import LoadSessionPopup
 from utils.backend import Backend
 from utils.lmu import LMU
 from utils.token_server import LocalCallbackServer
 from utils.resources import get_embedded_icon
-from core.session_validator import SessionValidator
 from core.session_recorder import SessionRecorder
 
 
 class MainWindow(QMainWindow):
     # Signals for thread-safe UI updates
     oauth_result = pyqtSignal(str, str)
-    show_record_dialog = pyqtSignal(dict)
     update_status_signal = pyqtSignal(str)
-    add_session_button_signal = pyqtSignal(str)
-    add_check_lb_button_signal = pyqtSignal()
-    remove_session_button_signal = pyqtSignal()
     show_window_signal = pyqtSignal()
+    leaderboards_loaded_signal = pyqtSignal(object)
+    cars_loaded_signal = pyqtSignal(object, str)
+    lmu_connected_signal = pyqtSignal(bool)
+    session_load_result_signal = pyqtSignal(bool, str)
+    set_loading_signal = pyqtSignal(bool, str)
+    start_recording_signal = pyqtSignal()
+    recording_error_signal = pyqtSignal(str)
 
     def __init__(self):
         super().__init__()
         self.setWindowTitle(APP_NAME)
-        self.setMinimumSize(350, 200)
-        self.resize(380, 230)
+        self.setMinimumSize(420, 320)
+        self.resize(460, 360)
         logger.info("Starting %s", APP_NAME)
         
         # Load embedded icon
@@ -92,12 +95,6 @@ class MainWindow(QMainWindow):
                 logger.warning("Failed to load embedded icon - using default")
         except Exception as e:
             logger.warning("Error loading embedded icon: %s", e)
-
-        # Dialogs
-        self.load_session_popup = LoadSessionPopup()
-
-        # Settings
-        self.settings = QSettings("LMU Times Bot", "Recorder")
 
         # Initialize clients
         self.backend = Backend()
@@ -112,7 +109,6 @@ class MainWindow(QMainWindow):
             self._show_fatal_error("Backend Error", "Failed to load car models from backend.")
         
         #Initialize logic components
-        self.validator = None  # Created after login when we have token
         self.recorder = None
         
         # OAuth
@@ -124,9 +120,12 @@ class MainWindow(QMainWindow):
         # Session state
         self.track = None
         self.car = None
-        self.setup_session_button_track = None
-        self.session_button = None
-        self.check_for_setup_session = False
+        self.leaderboards = []
+        self.selected_leaderboard = None
+        self.valid_cars = []
+        self.selected_car = None
+        self.lmu_connected = False
+        self.loading_session = False
 
         # Try to restore session
         self._restore_session()
@@ -138,20 +137,25 @@ class MainWindow(QMainWindow):
         self.layout = QVBoxLayout()
         self.layout.setContentsMargins(12, 12, 12, 12)
         self.layout.setSpacing(8)
+        self._connect_signals()
         self.setup_ui()
 
         container = QWidget()
         container.setLayout(self.layout)
         self.setCentralWidget(container)
 
-        # Connect signals
+    def _connect_signals(self):
+        """Connect Qt signals before background threads can emit them."""
         self.oauth_result.connect(self.on_oauth_result)
-        self.show_record_dialog.connect(self.on_show_record_dialog)
         self.update_status_signal.connect(self.on_update_status)
-        self.add_session_button_signal.connect(self.on_add_session_button)
-        self.add_check_lb_button_signal.connect(self.check_for_leaderboard)
-        self.remove_session_button_signal.connect(self.on_remove_session_button)
         self.show_window_signal.connect(self.on_show_window)
+        self.leaderboards_loaded_signal.connect(self.on_leaderboards_loaded)
+        self.cars_loaded_signal.connect(self.on_cars_loaded)
+        self.lmu_connected_signal.connect(self.on_lmu_connected_changed)
+        self.session_load_result_signal.connect(self.on_session_load_result)
+        self.set_loading_signal.connect(self.on_set_loading)
+        self.start_recording_signal.connect(self.launch_session)
+        self.recording_error_signal.connect(self.on_recording_error)
 
     # ============================================================
     # Initialization Helper Methods
@@ -196,8 +200,7 @@ class MainWindow(QMainWindow):
                 self.token = None
 
     def _init_logic(self):
-        """Initialize validator and recorder with current credentials."""
-        self.validator = SessionValidator(self.lmu, self.backend, self.car_models)
+        """Initialize recorder with current credentials."""
         self.recorder = SessionRecorder(self.lmu, self.backend, self.token)
 
     def _setup_system_tray(self):
@@ -236,7 +239,7 @@ class MainWindow(QMainWindow):
         """Add UI for logged in state."""
         self.layout.addStretch(1)
         
-        self.status_label = QLabel(f"Logged in as {self.username}\nWaiting for LMU...")
+        self.status_label = QLabel(f"Logged in as {self.username}\nLoading leaderboards...")
         self.status_label.setObjectName("statusLabel")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_label.setWordWrap(True)
@@ -244,8 +247,41 @@ class MainWindow(QMainWindow):
         font.setPointSize(9)
         self.status_label.setFont(font)
         self.layout.addWidget(self.status_label)
-        
-        self.layout.addStretch(2)
+
+        self.leaderboard_label = QLabel("Leaderboard")
+        self.leaderboard_label.setObjectName("fieldLabel")
+        self.layout.addWidget(self.leaderboard_label)
+
+        self.leaderboard_combo = QComboBox()
+        self.leaderboard_combo.setEnabled(False)
+        self.leaderboard_combo.addItem("Loading leaderboards...")
+        self.leaderboard_combo.currentIndexChanged.connect(self.on_leaderboard_selected)
+        self.layout.addWidget(self.leaderboard_combo)
+
+        self.car_label = QLabel("Car")
+        self.car_label.setObjectName("fieldLabel")
+        self.layout.addWidget(self.car_label)
+
+        self.car_combo = QComboBox()
+        self.car_combo.setEnabled(False)
+        self.car_combo.addItem("Select a leaderboard first")
+        self.car_combo.currentIndexChanged.connect(self.on_car_selected)
+        self.layout.addWidget(self.car_combo)
+
+        self.load_session_btn = QPushButton("Load Session")
+        self.load_session_btn.setMinimumHeight(32)
+        self.load_session_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.load_session_btn.setEnabled(False)
+        self.load_session_btn.clicked.connect(self.load_selected_session)
+        self.layout.addWidget(self.load_session_btn)
+
+        self.loading_indicator = QProgressBar()
+        self.loading_indicator.setRange(0, 0)
+        self.loading_indicator.setTextVisible(False)
+        self.loading_indicator.hide()
+        self.layout.addWidget(self.loading_indicator)
+
+        self.layout.addStretch(1)
 
         logout_btn = QPushButton("Logout")
         logout_btn.setObjectName("secondaryButton")
@@ -254,36 +290,190 @@ class MainWindow(QMainWindow):
         logout_btn.clicked.connect(self.logout)
         self.layout.addWidget(logout_btn)
 
+        threading.Thread(target=self.load_leaderboards, daemon=True).start()
         threading.Thread(target=self.poll_lmu, daemon=True).start()
 
     def add_login_ui(self):
         """Add UI for logged out state."""
         self.layout.addStretch(2)
-        
+
         login_btn = QPushButton("Login with Discord")
         login_btn.setObjectName("loginButton")
-        login_btn.setMinimumWidth(220)
+        login_btn.setMinimumWidth(240)
         login_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         login_btn.clicked.connect(self.open_oauth)
         self.layout.addWidget(login_btn, alignment=Qt.AlignmentFlag.AlignCenter)
-        
-        self.layout.addSpacing(10)
 
-        self.status_label = QLabel("Please login to continue")
+        self.status_label = QLabel("")
+        self.status_label.setObjectName("loginStatus")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        font = QFont()
-        font.setPointSize(8)
-        self.status_label.setFont(font)
         self.layout.addWidget(self.status_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.status_label.hide()
         self.layout.addStretch(3)
 
     def clear_layout(self):
         """Clear all widgets from layout."""
-        self.session_button = None
+        self.leaderboard_combo = None
+        self.car_combo = None
+        self.load_session_btn = None
+        self.loading_indicator = None
         while self.layout.count():
             item = self.layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
+
+    def load_leaderboards(self):
+        """Fetch active leaderboards from the backend."""
+        leaderboards = self.backend.get_leaderboards()
+        self.leaderboards_loaded_signal.emit(leaderboards)
+
+    def on_leaderboards_loaded(self, leaderboards):
+        """Populate the leaderboard selector."""
+        self.leaderboards = leaderboards or []
+        if not hasattr(self, "leaderboard_combo") or self.leaderboard_combo is None:
+            return
+
+        self.leaderboard_combo.blockSignals(True)
+        self.leaderboard_combo.clear()
+
+        if not self.leaderboards:
+            self.leaderboard_combo.addItem("No active leaderboards")
+            self.leaderboard_combo.setEnabled(False)
+            self.selected_leaderboard = None
+            self.update_status("No active leaderboards are available.")
+        else:
+            for leaderboard in self.leaderboards:
+                track = leaderboard.get("track", "")
+                label = TRACK_NAMES.get(track, track)
+                self.leaderboard_combo.addItem(label, leaderboard)
+            self.leaderboard_combo.setEnabled(not self.loading_session)
+            self.leaderboard_combo.setCurrentIndex(0)
+
+        self.leaderboard_combo.blockSignals(False)
+
+        if self.leaderboards:
+            self.on_leaderboard_selected(self.leaderboard_combo.currentIndex())
+
+    def on_leaderboard_selected(self, index):
+        """Load valid cars for the selected leaderboard."""
+        if not hasattr(self, "leaderboard_combo") or self.leaderboard_combo is None:
+            return
+
+        leaderboard = self.leaderboard_combo.itemData(index)
+        self.selected_leaderboard = leaderboard if isinstance(leaderboard, dict) else None
+        self.selected_car = None
+        self.valid_cars = []
+
+        self._set_car_combo_message("Waiting for LMU..." if not self.lmu_connected else "Loading cars...")
+        self._update_load_button_state()
+
+        if self.selected_leaderboard and self.lmu_connected and not self.loading_session:
+            threading.Thread(
+                target=self.load_cars_for_leaderboard,
+                args=(self.selected_leaderboard,),
+                daemon=True
+            ).start()
+
+    def on_car_selected(self, index):
+        """Store the selected car/livery."""
+        if not hasattr(self, "car_combo") or self.car_combo is None:
+            return
+
+        car = self.car_combo.itemData(index)
+        self.selected_car = car if isinstance(car, dict) else None
+        self._update_load_button_state()
+
+    def load_cars_for_leaderboard(self, leaderboard):
+        """Fetch and filter LMU vehicles for the selected leaderboard."""
+        try:
+            cars = self.get_valid_cars(leaderboard)
+            self.cars_loaded_signal.emit(cars, "")
+        except Exception as e:
+            logger.exception("Failed to load cars")
+            self.cars_loaded_signal.emit([], str(e))
+
+    def on_cars_loaded(self, cars, error):
+        """Populate the car selector."""
+        if not hasattr(self, "car_combo") or self.car_combo is None:
+            return
+
+        self.valid_cars = cars or []
+        self.car_combo.blockSignals(True)
+        self.car_combo.clear()
+
+        if error:
+            self.car_combo.addItem("Failed to load cars")
+            self.car_combo.setEnabled(False)
+            self.update_status(f"Failed to load cars: {error}")
+        elif not self.valid_cars:
+            self.car_combo.addItem("No valid cars found")
+            self.car_combo.setEnabled(False)
+            self.update_status("No valid cars found for this leaderboard class.")
+        else:
+            for car in self.valid_cars:
+                self.car_combo.addItem(self.format_car_label(car), car)
+            self.car_combo.setEnabled(not self.loading_session)
+            self.car_combo.setCurrentIndex(0)
+
+        self.car_combo.blockSignals(False)
+        self.on_car_selected(self.car_combo.currentIndex())
+
+    def _set_car_combo_message(self, message):
+        if not hasattr(self, "car_combo") or self.car_combo is None:
+            return
+        self.car_combo.blockSignals(True)
+        self.car_combo.clear()
+        self.car_combo.addItem(message)
+        self.car_combo.setEnabled(False)
+        self.car_combo.blockSignals(False)
+
+    def get_valid_cars(self, leaderboard):
+        """Return the first livery for each valid car model in LMU vehicle order."""
+        allowed_class_names = [
+            CAR_CLASS_NAMES.get(class_id, class_id)
+            for class_id in leaderboard.get("classes", [])
+        ]
+
+        valid = []
+        seen = set()
+        for car in self.lmu.get_all_vehicles():
+            if car.get("isOwned") is False:
+                continue
+
+            classes = car.get("classes") or []
+            if allowed_class_names and not any(class_name in classes for class_name in allowed_class_names):
+                continue
+
+            key = car.get("sig") or car.get("vehicle") or car.get("id")
+            if key in seen:
+                continue
+            seen.add(key)
+            valid.append(car)
+
+        return valid
+
+    def format_car_label(self, car):
+        """Build the visible car selector label."""
+        model = self.car_models.get(car.get("sig"))
+        if not model:
+            full_path = car.get("fullPathTree") or ""
+            model = full_path.split(",")[-1].strip() if full_path else None
+        if not model:
+            model = car.get("manufacturer") or car.get("desc") or car.get("vehicle") or car.get("id")
+
+        return str(model)
+
+    def _update_load_button_state(self):
+        if not hasattr(self, "load_session_btn") or self.load_session_btn is None:
+            return
+
+        can_load = (
+            self.lmu_connected
+            and bool(self.selected_leaderboard)
+            and bool(self.selected_car)
+            and not self.loading_session
+        )
+        self.load_session_btn.setEnabled(can_load)
 
     # ============================================================
     # Status Updates
@@ -297,6 +487,70 @@ class MainWindow(QMainWindow):
         """Handle status update from signal."""
         if hasattr(self, "status_label"):
             self.status_label.setText(f"Logged in as {self.username}\n\n{message}")
+
+    def on_lmu_connected_changed(self, connected):
+        """Handle LMU connection state changes on the UI thread."""
+        self.lmu_connected = connected
+        if connected:
+            if self.selected_leaderboard and not self.valid_cars and not self.loading_session:
+                self._set_car_combo_message("Loading cars...")
+                threading.Thread(
+                    target=self.load_cars_for_leaderboard,
+                    args=(self.selected_leaderboard,),
+                    daemon=True
+                ).start()
+            self._update_load_button_state()
+        else:
+            self.selected_car = None
+            self.valid_cars = []
+            self._set_car_combo_message("Waiting for LMU...")
+            self._update_load_button_state()
+
+    def on_set_loading(self, loading, message):
+        """Toggle loading UI while the save is generated and loaded."""
+        self.loading_session = loading
+
+        if hasattr(self, "loading_indicator") and self.loading_indicator is not None:
+            self.loading_indicator.setVisible(loading)
+
+        if hasattr(self, "leaderboard_combo") and self.leaderboard_combo is not None:
+            self.leaderboard_combo.setEnabled(not loading and bool(self.leaderboards))
+
+        if hasattr(self, "car_combo") and self.car_combo is not None:
+            self.car_combo.setEnabled(not loading and bool(self.valid_cars))
+
+        if message:
+            self.update_status(message)
+
+        self._update_load_button_state()
+
+    def load_selected_session(self):
+        """Start LMU save generation/load for the selected leaderboard and car."""
+        if not self.selected_leaderboard or not self.selected_car:
+            return
+
+        leaderboard = dict(self.selected_leaderboard)
+        car = dict(self.selected_car)
+        self.on_set_loading(True, "Loading session...")
+
+        threading.Thread(
+            target=self._load_selected_session_worker,
+            args=(leaderboard, car),
+            daemon=True
+        ).start()
+
+    def _load_selected_session_worker(self, leaderboard, car):
+        success, error = self.lmu.load_generated_session(leaderboard, car)
+        self.session_load_result_signal.emit(success, error or "")
+
+    def on_session_load_result(self, success, error):
+        """Handle loadGame result."""
+        if success:
+            self.on_set_loading(True, "Session loaded. Waiting for LMU...")
+            return
+
+        play_error_sound()
+        self.on_set_loading(False, f"Failed to load session. Reason: {error}")
 
     # ============================================================
     # System Tray
@@ -331,62 +585,6 @@ class MainWindow(QMainWindow):
         super().changeEvent(event)
 
     # ============================================================
-    # Session Setup Button Management
-    # ============================================================
-
-    def add_setup_session_button(self, track):
-        """Add a button to setup session (thread-safe via signal)."""
-        self.add_session_button_signal.emit(track)
-
-    def on_add_session_button(self, track):
-        """Handle session button addition from signal."""
-        setup_session_btn = QPushButton(f"Setup Session for {TRACK_NAMES.get(track, track)}")
-        setup_session_btn.setMinimumHeight(32)
-        setup_session_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        setup_session_btn.clicked.connect(self.setup_session)
-        self.layout.insertWidget(self.layout.count() - 1, setup_session_btn)
-        self.session_button = setup_session_btn
-
-    def add_check_leaderboard_button(self):
-        """Add a button to check for leaderboard (thread-safe via signal)."""
-        self.add_check_lb_button_signal.emit()
-
-    def check_for_leaderboard(self):
-        """When pressed, checks current track for leaderboard and adds setup button if found."""
-        check_button = QPushButton("Check for Leaderboard")
-        check_button.setMinimumHeight(32)
-        check_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        check_button.clicked.connect(self.on_check_for_leaderboard)
-        self.layout.insertWidget(self.layout.count() - 1, check_button)
-        self.session_button = check_button
-
-    def on_check_for_leaderboard(self):
-        """Handle check for leaderboard button press."""
-        lb_info = self.check_track_for_lb()
-        self.remove_session_button()
-        if lb_info:
-            self.update_status("Click the button below to setup the session for recording.")
-            
-
-            self.add_setup_session_button(lb_info["track"])
-            self.setup_session_button_track = lb_info
-
-            self.check_for_setup_session = True
-        else:
-            self.update_status("LMU Connected. No track with leaderboard detected. Please select a track with a leaderboard.")
-            self.check_for_setup_session = True
-
-    def remove_session_button(self):
-        """Remove session button (thread-safe via signal)."""
-        self.remove_session_button_signal.emit()
-
-    def on_remove_session_button(self):
-        """Handle session button removal from signal."""
-        if self.session_button:
-            self.session_button.deleteLater()
-            self.session_button = None
-
-    # ============================================================
     # OAuth Authentication
     # ============================================================
 
@@ -398,6 +596,7 @@ class MainWindow(QMainWindow):
 
         if not url:
             self.status_label.setText("Failed to connect to server")
+            self.status_label.show()
             return
 
         def on_login(code, name):
@@ -409,9 +608,11 @@ class MainWindow(QMainWindow):
             self.oauth_server.start()
             webbrowser.open(url)
             self.status_label.setText("Opening browser...\nWaiting for login")
+            self.status_label.show()
         except OSError as e:
             logger.error("OAuth server failed: %s", e)
             self.status_label.setText("Failed to start login server")
+            self.status_label.show()
             self.oauth_server = None
 
     def on_oauth_result(self, code, name):
@@ -449,52 +650,16 @@ class MainWindow(QMainWindow):
         self.logged_in = False
         self.token = None
         self.username = None
-        self.validator = None
         self.recorder = None
+        self.leaderboards = []
+        self.selected_leaderboard = None
+        self.valid_cars = []
+        self.selected_car = None
+        self.loading_session = False
 
         self.clear_layout()
         self.add_login_ui()
         logger.info("Logged out")
-
-    # ============================================================
-    # Session Setup
-    # ============================================================
-
-    def setup_session(self):
-        """Setup session weather and conditions."""
-        res = self.lmu.set_session(
-            self.setup_session_button_track["weather"], 
-            self.setup_session_button_track["tod"]
-        )
-
-        if res is not None:
-            play_error_sound()
-            return self.update_status(f"Failed to setup session. Reason: {res}.")
-
-        self.update_status("Session setup successfully! Waiting for session start...")
-
-        dont_show_popup = self.settings.value("dont_show_load_session_popup", False, type=bool)
-        if not dont_show_popup:
-            self.load_session_popup.exec()
-
-
-    def check_track_for_lb(self):
-        """Check if current track has a leaderboard."""
-        session = self.lmu.get_session_state()
-        if not session:
-            return None
-
-        track = session.get("loadingStatus", {}).get("track", {}).get("sceneDesc")
-        if not track:
-            return None
-        
-        if track == self.setup_session_button_track or track == self.track:
-            return None
-        
-        self.track = track
-
-        lb_info = self.backend.get_lb_info(track)
-        return lb_info
 
     # ============================================================
     # LMU Polling & Session Management
@@ -503,44 +668,35 @@ class MainWindow(QMainWindow):
         """Poll for LMU connection and session."""
         logger.info("Polling for LMU...")
 
-        while not self.lmu.attempt_connection():
-            threading.Event().wait(POLL_INTERVAL)
-
-        logger.info("LMU connected")
-        self.update_status("LMU connected. Waiting for session...")
-
-        self.track = None  # Reset track to detect new session
-        self.add_check_leaderboard_button()
-
         while True:
-            state = self.lmu.get_session_info()
+            while not self.lmu.attempt_connection():
+                if self.lmu_connected:
+                    self.lmu_connected_signal.emit(False)
+                threading.Event().wait(POLL_INTERVAL)
 
-            if state is False:
-                logger.warning("LMU disconnected")
-                self.update_status("Waiting for LMU...")
-                self.poll_lmu()
-                return
+            logger.info("LMU connected")
+            self.lmu_connected_signal.emit(True)
+            self.update_status("LMU connected. Select a leaderboard and car.")
+
+            while True:
+                state = self.lmu.get_session_info()
+
+                if state is False:
+                    logger.warning("LMU disconnected")
+                    self.lmu_connected_signal.emit(False)
+                    self.update_status("Waiting for LMU...")
+                    break
+
+                if state and state.get("inControlOfVehicle"):
+                    logger.info("Session started")
+                    self.set_loading_signal.emit(False, "Session started!")
+                    break
+
+                threading.Event().wait(POLL_INTERVAL)
 
             if state and state.get("inControlOfVehicle"):
-                logger.info("Session started")
-                self.update_status("Session started!")
-                break
-            elif self.check_for_setup_session:
-                track = self.check_track_for_lb()
-
-                if track:
-                    logger.info("Track with LB detected: %s", track["track"])
-
-                    self.update_status("Click the button below to setup the session for recording.")
-        
-                    self.remove_session_button()
-                    
-                    self.add_setup_session_button(track["track"])
-                    self.setup_session_button_track = track
-
-            threading.Event().wait(POLL_INTERVAL)
-
-        self.launch_session()
+                self.start_recording_signal.emit()
+                return
 
     def wait_for_session_end(self):
         """Wait for session to end then resume polling."""
@@ -560,13 +716,13 @@ class MainWindow(QMainWindow):
         threading.Thread(target=self.wait_for_session_end, daemon=True).start()
 
     # ============================================================
-    # Session Validation & Recording
+    # Session Recording
     # ============================================================
 
-    def on_validation_error(self, message):
-        """Handle validation error."""
+    def on_recording_error(self, message):
+        """Handle a recording-blocking error."""
         self.update_status(message)
-        logger.info("Validation error: %s", message)
+        logger.info("Recording error: %s", message)
 
         self.show_from_tray()
         flash_window(self.winId())
@@ -574,55 +730,32 @@ class MainWindow(QMainWindow):
         self.start_end_watcher()
 
     def launch_session(self):
-        """Validate session and prepare for recording."""
+        """Start recording for the loaded leaderboard session."""
         logger.info("Launching session handler")
 
-        self.remove_session_button()
+        lb_info = self.selected_leaderboard or {}
+        selected_car = self.selected_car or {}
+        track = lb_info.get("track")
 
-        # Use validator to check all conditions
-        success, error_msg, lb_info, car, track = self.validator.validate_session(
-            self.update_status
-        )
+        if not track or not selected_car:
+            return self.on_recording_error("No loaded leaderboard/car selected. Waiting for session end...")
 
-        if not success:
-            return self.on_validation_error(error_msg)
-
-        # Store session info
-        self.car = car
+        self.car = self.car_models.get(selected_car.get("sig")) or self.format_car_label(selected_car)
         self.track = track
 
-        logger.info("All conditions met")
-        self.update_status("Ready to record!")
-        play_info_sound()
-        self.show_from_tray()
-        self.show_record_dialog.emit(lb_info)
-
-    def on_show_record_dialog(self, lb_info):
-        """Show record confirmation dialog."""
-        reply = QMessageBox.question(
-            self, "Record Session", "Do you want to record this session?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No
-        )
-
         def on_error(message):
-            self.on_validation_error(message)
+            self.recording_error_signal.emit(message)
 
-        if reply == QMessageBox.StandardButton.Yes:
-            logger.info("Recording session")
-            self.update_status("Recording...")
-            self.hide_to_tray()
-            
-            # Start recording using the recorder
-            self.recorder.start_recording(
-                track=self.track,
-                car=self.car,
-                fixed_setup=lb_info.get("fixed_setup", False),
-                update_callback=self.update_status,
-                on_session_end=self.poll_lmu,
-                on_disconnect=self.poll_lmu,
-                on_error=on_error
-            )
-        else:
-            self.update_status("Recording cancelled. Waiting for session end...")
-            self.start_end_watcher()
+        logger.info("Recording session")
+        self.update_status("Recording...")
+        self.hide_to_tray()
+
+        self.recorder.start_recording(
+            track=self.track,
+            car=self.car,
+            fixed_setup=lb_info.get("fixed_setup", False),
+            update_callback=self.update_status,
+            on_session_end=self.poll_lmu,
+            on_disconnect=self.poll_lmu,
+            on_error=on_error
+        )

@@ -104,6 +104,11 @@ if not exist "%RECORDER_DIR%\requirements.txt" (
     exit /b 1
 )
 
+if not exist "%RECORDER_DIR%\templates\session_preset_generation_template.json" (
+    echo Error: session preset generation template not found in "%RECORDER_DIR%\templates"
+    exit /b 1
+)
+
 REM ---------- Patch Python constants using PowerShell ----------
 echo.
 echo Patching Python constants...
@@ -294,7 +299,7 @@ echo   Name: !APP_NAME!
 echo   Icon: icon.ico
 echo.
 
-pyinstaller --onefile --windowed --icon=icon.ico --add-data "images/setup_session_instructions.jpg;." --name "!APP_NAME!" main.py
+pyinstaller --onefile --windowed --icon=icon.ico --add-data "images/setup_session_instructions.jpg;." --add-data "templates/session_preset_generation_template.json;templates" --name "!APP_NAME!" main.py
 if errorlevel 1 (
     echo.
     echo Error: PyInstaller build failed.

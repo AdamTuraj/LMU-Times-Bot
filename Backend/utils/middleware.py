@@ -32,6 +32,7 @@ auth_requests = defaultdict(list)
 
 # Route config
 ROUTES = {
+    "/leaderboards": {"limiter": "general", "auth": False},
     "/leaderboard/{track}": {"limiter": "general", "auth": False},
     "/leaderboard/{track}/submit": {"limiter": "submit", "auth": True},
     "/user": {"limiter": "general", "auth": True},

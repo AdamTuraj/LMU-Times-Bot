@@ -153,7 +153,39 @@ except Exception as e:
 async def get_car_models(req: Request, res: Response):
     return res.json(CAR_MODELS)
 
+
+def leaderboard_to_response(leaderboard):
+    try:
+        weather = ast.literal_eval(leaderboard[2])
+    except:
+        weather = {}
+
+    try:
+        classes = ast.literal_eval(leaderboard[3])
+    except:
+        classes = []
+
+    return {
+        "track": leaderboard[0],
+        "discord_channel": leaderboard[1],
+        "weather": weather,
+        "classes": classes,
+        "tod": leaderboard[5],
+        "fixed_setup": leaderboard[6]
+    }
+
 # Routes - Leaderboard
+@app.get("/leaderboards")
+async def get_leaderboards(req: Request, res: Response):
+    try:
+        leaderboards = await database.get_all_leaderboards()
+    except DatabaseError as e:
+        logger.error("Database error: %s", e)
+        return res.status(500).json({"error": "Internal server error"})
+
+    return res.json([leaderboard_to_response(lb) for lb in leaderboards])
+
+
 @app.get("/leaderboard/{track}")
 async def get_leaderboard(req: Request, res: Response):
     track = req.path_params.get("track")
@@ -169,24 +201,7 @@ async def get_leaderboard(req: Request, res: Response):
     if not leaderboard:
         return res.status(404).json({"error": "Leaderboard not found"})
 
-    try:
-        weather = ast.literal_eval(leaderboard[2])
-    except:
-        weather = {}
-
-    try:
-        classes = ast.literal_eval(leaderboard[3])
-    except:
-        classes = []
-
-    return res.json({
-        "track": leaderboard[0],
-        "discord_channel": leaderboard[1],
-        "weather": weather,
-        "classes": classes,
-        "tod": leaderboard[5],
-        "fixed_setup": leaderboard[6]
-    })
+    return res.json(leaderboard_to_response(leaderboard))
 
 
 @app.post("/leaderboard/{track}/submit")

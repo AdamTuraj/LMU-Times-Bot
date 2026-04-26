@@ -1,0 +1,265 @@
+{
+    "Grid": [],
+    "Player": {
+        "DRIVER": {
+            "Vehicle": ""
+        },
+        "Game Options": {
+            "Allowed Vehicles": {
+                "Optional": [],
+                "Required": []
+            },
+            "CrashRecovery": 0,
+            "Damage Multiplier": 100,
+            "Drivers Per Vehicle AI": 1,
+            "Drivers Per Vehicle Player": 1,
+            "Equipped Scenario Plans": "",
+            "FreeSettings": 11,
+            "Fuel Consumption Multiplier": 1,
+            "Limited Tire Rules Tires Available In Garage": 100,
+            "Min drive time allowed for 2 driver teams": -1,
+            "Min drive time allowed for 3 driver teams": -1,
+            "Multi-session Results": false,
+            "Opponents": 0,
+            "Qualifying Laps": 255,
+            "Race Finish Criteria": 2,
+            "Race Laps": 0,
+            "Race Length": 0,
+            "Race Time": 0,
+            "Speed Compensation": 0,
+            "Starting Pos": 0,
+            "Stop go penalties": true,
+            "Tire Warmers": false,
+            "Tire Wear Multiplier": 1,
+            "Vehicle classes affected by drive time": "",
+            "practice length": 360,
+            "qualifying length": 20,
+            "warmup length": 0
+        },
+        "Mechanical Failures": {
+            "Failure Rate": 0
+        },
+        "Race Conditions": {
+            "BlueFlags": 1,
+            "Flag Rules": 2,
+            "Force Formation": 0,
+            "Formation Lap": 0,
+            "Grid Walkthrough": 0,
+            "Num Qual Sessions": 0,
+            "Num Race Sessions": 0,
+            "ParcFerme": 3,
+            "Practice1StartingTime": 540,
+            "PrivatePractice": true,
+            "PrivateQualifying": 1,
+            "QualifyingStartingTime": -1,
+            "Race Timer": 3600,
+            "RaceStartingTime": -1,
+            "RaceTimeScale": 0,
+            "RealRoadTimeScalePractice": 0,
+            "RealRoadTimeScaleQualifying": 1,
+            "RealRoadTimeScaleRace": 1,
+            "Recon Pit Closed": 150,
+            "Recon Pit Open": 300,
+            "Recon Timer": true,
+            "Reconnaissance": 0,
+            "Run Practice1": true,
+            "Run Practice2": false,
+            "Run Practice3": false,
+            "Run Practice4": false,
+            "Run Warmup": false,
+            "Safety Car Collidable": false,
+            "Safety Car Thresh": 100,
+            "TimeScaledWeather": true,
+            "Track Limits Points Allowed": 5,
+            "Track Limits Rules": 1,
+            "Unsportsmanlike Sensitivity": 1.5,
+            "WarmupStartingTime": -1,
+            "Weather": 4
+        },
+        "SCENE": {
+            "AI Database File": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Le Mans Ultimate\\Installed\\Locations\\Barcelona_2025\\1.01\\BARCELONAELMS.AIW",
+            "Scene Description": "BARCELONAELMS",
+            "Scene File": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Le Mans Ultimate\\Installed\\Locations\\Barcelona_2025\\1.01\\BARCELONAELMS.SCN",
+            "Scene Signature": "18c2eb1c2281ef6d88e663c4c78b7b9c0f3e3fd9eb32542b8af4a3041a81f458"
+        }
+    },
+    "Weather": {
+        "Practice": {
+            "Road": {
+                "LoadTemperaturesFromRealRoadFile": false,
+                "RealRoad": "preset:SATURATED.RRBIN",
+                "WaterDepth": 0
+            },
+            "Weather": [
+                {
+                    "Duration": 30,
+                    "Humidity": 100,
+                    "RainChance": 100,
+                    "Sky": 6,
+                    "StartTime": 540,
+                    "Temperature": 23,
+                    "WindDirection": 0,
+                    "WindSpeed": 0
+                },
+                {
+                    "Duration": 30,
+                    "Humidity": 0,
+                    "RainChance": 0,
+                    "Sky": 2,
+                    "StartTime": 570,
+                    "Temperature": 23,
+                    "WindDirection": 0,
+                    "WindSpeed": 0
+                },
+                {
+                    "Duration": 30,
+                    "Humidity": 0,
+                    "RainChance": 0,
+                    "Sky": 2,
+                    "StartTime": 600,
+                    "Temperature": 23,
+                    "WindDirection": 0,
+                    "WindSpeed": 0
+                },
+                {
+                    "Duration": 30,
+                    "Humidity": 0,
+                    "RainChance": 0,
+                    "Sky": 2,
+                    "StartTime": 630,
+                    "Temperature": 23,
+                    "WindDirection": 0,
+                    "WindSpeed": 0
+                },
+                {
+                    "Duration": 30,
+                    "Humidity": 0,
+                    "RainChance": 0,
+                    "Sky": 2,
+                    "StartTime": 660,
+                    "Temperature": 23,
+                    "WindDirection": 0,
+                    "WindSpeed": 0
+                }
+            ]
+        },
+        "Qualifying": {
+            "Road": {
+                "LoadTemperaturesFromRealRoadFile": false,
+                "RealRoad": "preset:Medium.rrbin",
+                "WaterDepth": -0.009999999776482582
+            },
+            "Weather": [
+                {
+                    "Duration": 30,
+                    "Humidity": 60,
+                    "RainChance": 0,
+                    "Sky": 1,
+                    "StartTime": 540,
+                    "Temperature": 23,
+                    "WindDirection": 5,
+                    "WindSpeed": 13
+                },
+                {
+                    "Duration": 30,
+                    "Humidity": 60,
+                    "RainChance": 0,
+                    "Sky": 2,
+                    "StartTime": 570,
+                    "Temperature": 23,
+                    "WindDirection": 5,
+                    "WindSpeed": 12
+                },
+                {
+                    "Duration": 30,
+                    "Humidity": 60,
+                    "RainChance": 0,
+                    "Sky": 1,
+                    "StartTime": 600,
+                    "Temperature": 24,
+                    "WindDirection": 5,
+                    "WindSpeed": 11
+                },
+                {
+                    "Duration": 30,
+                    "Humidity": 60,
+                    "RainChance": 0,
+                    "Sky": 1,
+                    "StartTime": 630,
+                    "Temperature": 24,
+                    "WindDirection": 5,
+                    "WindSpeed": 11
+                },
+                {
+                    "Duration": 30,
+                    "Humidity": 60,
+                    "RainChance": 0,
+                    "Sky": 0,
+                    "StartTime": 660,
+                    "Temperature": 25,
+                    "WindDirection": 5,
+                    "WindSpeed": 7
+                }
+            ]
+        },
+        "Race": {
+            "Road": {
+                "LoadTemperaturesFromRealRoadFile": false,
+                "RealRoad": "preset:Heavy.rrbin",
+                "WaterDepth": -0.009999999776482582
+            },
+            "Weather": [
+                {
+                    "Duration": 30,
+                    "Humidity": 60,
+                    "RainChance": 0,
+                    "Sky": 1,
+                    "StartTime": 540,
+                    "Temperature": 25,
+                    "WindDirection": 2,
+                    "WindSpeed": 30
+                },
+                {
+                    "Duration": 30,
+                    "Humidity": 60,
+                    "RainChance": 0,
+                    "Sky": 0,
+                    "StartTime": 570,
+                    "Temperature": 24,
+                    "WindDirection": 3,
+                    "WindSpeed": 24
+                },
+                {
+                    "Duration": 30,
+                    "Humidity": 60,
+                    "RainChance": 0,
+                    "Sky": 1,
+                    "StartTime": 600,
+                    "Temperature": 23,
+                    "WindDirection": 3,
+                    "WindSpeed": 22
+                },
+                {
+                    "Duration": 30,
+                    "Humidity": 60,
+                    "RainChance": 0,
+                    "Sky": 1,
+                    "StartTime": 630,
+                    "Temperature": 23,
+                    "WindDirection": 4,
+                    "WindSpeed": 7
+                },
+                {
+                    "Duration": 30,
+                    "Humidity": 60,
+                    "RainChance": 0,
+                    "Sky": 2,
+                    "StartTime": 660,
+                    "Temperature": 22,
+                    "WindDirection": 5,
+                    "WindSpeed": 7
+                }
+            ]
+        }
+    }
+}
