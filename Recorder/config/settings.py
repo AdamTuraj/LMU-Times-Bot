@@ -37,7 +37,7 @@ CAR_CLASSES = {
     "LMP3": 2,
     "LMP2": 3,
     "LMP2_ELMS": 4,
-    "Hyper": 5
+    "Hypercar": 5
 }
 CAR_CLASS_NAMES = {v: k for k, v in CAR_CLASSES.items()}
 

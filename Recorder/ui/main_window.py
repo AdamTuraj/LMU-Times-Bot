@@ -440,7 +440,7 @@ class MainWindow(QMainWindow):
             if car.get("isOwned") is False:
                 continue
 
-            classes = car.get("classes") or []
+            classes = car.get("classes", [])
             if allowed_class_names and not any(class_name in classes for class_name in allowed_class_names):
                 continue
 
