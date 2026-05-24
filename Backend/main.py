@@ -26,6 +26,8 @@ import logging
 import os
 import secrets
 import sys
+import uuid
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from aiohttp import ClientSession, BasicAuth
@@ -39,17 +41,68 @@ from utils.middleware import rate_limit_middleware, auth_middleware
 load_dotenv()
 
 # Logging setup
-logging.basicConfig(
-    level=logging.DEBUG if os.getenv("DEBUG", "false").lower() == "true" else logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
+DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+
+
+def _env_int(name, default):
+    try:
+        return int(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+
+
+def _log_file_path():
+    path_string = Path(__file__).resolve().parent / "logs" / "backend.log"
+
+    path = Path(path_string).expanduser()
+    if not path.is_absolute():
+        path = Path(__file__).resolve().parent / path
+    return path
+
+
+def configure_logging():
+    level = logging.DEBUG if DEBUG else logging.INFO
+    log_file = _log_file_path()
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+
+    formatter = logging.Formatter(
+        "%(asctime)s.%(msecs)03d - "
+        "%(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setFormatter(formatter)
+
+    file_handler = RotatingFileHandler(
+        log_file,
+        maxBytes=_env_int("LOG_MAX_BYTES", 10 * 1024 * 1024),
+        backupCount=_env_int("LOG_BACKUP_COUNT", 5),
+        encoding="utf-8",
+    )
+    file_handler.setFormatter(formatter)
+
+    root_logger = logging.getLogger()
+    root_logger.handlers.clear()
+    root_logger.setLevel(level)
+    root_logger.addHandler(stream_handler)
+    root_logger.addHandler(file_handler)
+
+    for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        uvicorn_logger = logging.getLogger(logger_name)
+        uvicorn_logger.handlers.clear()
+        uvicorn_logger.propagate = True
+        uvicorn_logger.setLevel(level)
+
+    return log_file
+
+
+LOG_FILE = configure_logging()
 logging.getLogger("aiohttp").setLevel(logging.WARNING)
 logging.getLogger("aiosqlite").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Config from environment
-DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 PORT = int(os.getenv("PORT", "8000"))
 HOST = os.getenv("HOST", "localhost")
 DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "")
@@ -206,37 +259,67 @@ async def get_leaderboard(req: Request, res: Response):
 
 @app.post("/leaderboard/{track}/submit")
 async def submit_time(req: Request, res: Response):
+    request_id = uuid.uuid4().hex[:12]
     track = req.path_params.get("track")
     if not track:
+        logger.warning("[%s] Rejected submit with missing track", request_id)
         return res.status(400).json({"error": "Track parameter required"})
 
     user = req.state.user
+    logger.info(
+        "[%s] Lap submit received: track='%s' user_id='%s' user_name='%s'",
+        request_id,
+        track,
+        user[1],
+        user[2],
+    )
 
     try:
         if await database.is_blacklisted(user[1]):
+            logger.warning(
+                "[%s] Rejected blacklisted user: track='%s' user_id='%s' user_name='%s'",
+                request_id,
+                track,
+                user[1],
+                user[2],
+            )
             return res.status(403).json({"error": "You are blacklisted"})
     except DatabaseError as e:
-        logger.error("Database error: %s", e)
+        logger.error("[%s] Database error checking blacklist: %s", request_id, e)
         return res.status(500).json({"error": "Internal server error"})
 
     try:
         body = await req.json
-    except:
+    except Exception:
+        logger.warning("[%s] Rejected submit with invalid JSON body", request_id)
         return res.status(400).json({"error": "Invalid JSON body"})
 
     time_data = body.get("time_data")
     car = body.get("car")
     driver_name = body.get("driver_name")
     car_class = body.get("class")
+    logger.debug(
+        "[%s] Raw submit payload: track='%s' driver_name=%r car=%r class=%r time_data=%r",
+        request_id,
+        track,
+        driver_name,
+        car,
+        car_class,
+        time_data,
+    )
 
     # Validate required fields
     if not time_data or not isinstance(time_data, dict):
+        logger.warning("[%s] Rejected submit with invalid time_data: %r", request_id, time_data)
         return res.status(400).json({"error": "time_data is required and must be an object"})
     if not car or not isinstance(car, str) or not car.strip():
+        logger.warning("[%s] Rejected submit with invalid car: %r", request_id, car)
         return res.status(400).json({"error": "car is required and must be a non-empty string"})
     if not driver_name or not isinstance(driver_name, str) or not driver_name.strip():
+        logger.warning("[%s] Rejected submit with invalid driver_name: %r", request_id, driver_name)
         return res.status(400).json({"error": "driver_name is required and must be a non-empty string"})
     if not car_class or not isinstance(car_class, str) or not car_class.strip():
+        logger.warning("[%s] Rejected submit with invalid class: %r", request_id, car_class)
         return res.status(400).json({"error": "class is required and must be a non-empty string"})
 
     # Validate time_data structure
@@ -245,10 +328,13 @@ async def submit_time(req: Request, res: Response):
     sector2 = time_data.get("sector2")
 
     if lap_time is None:
+        logger.warning("[%s] Rejected submit with missing lap time", request_id)
         return res.status(400).json({"error": "time_data.lap is required"})
     if sector1 is None:
+        logger.warning("[%s] Rejected submit with missing sector1", request_id)
         return res.status(400).json({"error": "time_data.sector1 is required"})
     if sector2 is None:
+        logger.warning("[%s] Rejected submit with missing sector2", request_id)
         return res.status(400).json({"error": "time_data.sector2 is required"})
 
     # Validate time values are numbers
@@ -257,33 +343,76 @@ async def submit_time(req: Request, res: Response):
         sector1 = float(sector1)
         sector2 = float(sector2)
     except (ValueError, TypeError):
+        logger.warning(
+            "[%s] Rejected submit with non-numeric times: lap=%r sector1=%r sector2=%r",
+            request_id,
+            lap_time,
+            sector1,
+            sector2,
+        )
         return res.status(400).json({"error": "All time values must be numbers"})
 
     # Validate lap_time is positive
     if lap_time <= 0:
+        logger.warning("[%s] Rejected submit with non-positive lap: %.3f", request_id, lap_time)
         return res.status(400).json({"error": "lap_time must be greater than 0"})
 
     # Validate sector times are either -1 or positive
     if sector1 != -1 and sector1 <= 0:
+        logger.warning("[%s] Rejected submit with invalid sector1: %.3f", request_id, sector1)
         return res.status(400).json({"error": "sector1 must be -1 or greater than 0"})
     if sector2 != -1 and sector2 <= 0:
+        logger.warning("[%s] Rejected submit with invalid sector2: %.3f", request_id, sector2)
         return res.status(400).json({"error": "sector2 must be -1 or greater than 0"})
 
     # Validate string lengths
     if len(driver_name) > 100:
+        logger.warning(
+            "[%s] Rejected submit with driver_name too long: length=%d",
+            request_id,
+            len(driver_name),
+        )
         return res.status(400).json({"error": "driver_name must not exceed 100 characters"})
     if len(car) > 100:
+        logger.warning("[%s] Rejected submit with car too long: length=%d", request_id, len(car))
         return res.status(400).json({"error": "car must not exceed 100 characters"})
     if len(car_class) > 50:
+        logger.warning(
+            "[%s] Rejected submit with class too long: length=%d",
+            request_id,
+            len(car_class),
+        )
         return res.status(400).json({"error": "class must not exceed 50 characters"})
+
+    if sector1 != -1 and sector2 != -1:
+        sector3 = lap_time - sector1 - sector2
+        if sector3 <= 0:
+            logger.warning(
+                "[%s] Suspicious time data: lap=%.3f sector1=%.3f sector2=%.3f derived_sector3=%.3f",
+                request_id,
+                lap_time,
+                sector1,
+                sector2,
+                sector3,
+            )
+        else:
+            logger.debug(
+                "[%s] Normalized time data: lap=%.3f sector1=%.3f sector2=%.3f derived_sector3=%.3f",
+                request_id,
+                lap_time,
+                sector1,
+                sector2,
+                sector3,
+            )
 
     try:
         leaderboard = await database.get_leaderboard(track)
     except DatabaseError as e:
-        logger.error("Database error: %s", e)
+        logger.error("[%s] Database error fetching leaderboard: %s", request_id, e)
         return res.status(500).json({"error": "Internal server error"})
 
     if not leaderboard:
+        logger.warning("[%s] Rejected submit for missing leaderboard: track='%s'", request_id, track)
         return res.status(404).json({"error": "Leaderboard not found"})
 
     time_data = {
@@ -293,13 +422,37 @@ async def submit_time(req: Request, res: Response):
     }
 
     try:
-        await database.submit_lap_time(track, user[1], driver_name.strip(), car.strip(), car_class.strip(), time_data)
+        result = await database.submit_lap_time(
+            track,
+            user[1],
+            driver_name.strip(),
+            car.strip(),
+            car_class.strip(),
+            time_data,
+            request_id=request_id,
+        )
     except DatabaseError as e:
-        logger.error("Database error: %s", e)
+        logger.error("[%s] Database error submitting lap time: %s", request_id, e)
         return res.status(500).json({"error": "Internal server error"})
 
-    logger.info("Lap time submitted by '%s' for track '%s'", driver_name, track)
-    return res.json({"message": "Time submitted successfully"})
+    logger.info(
+        "[%s] Lap submit finished: action='%s' saved=%s track='%s' user_id='%s' "
+        "driver_name='%s' car='%s' class='%s' lap=%.3f",
+        request_id,
+        result.get("action"),
+        result.get("saved"),
+        track,
+        user[1],
+        driver_name.strip(),
+        car.strip(),
+        car_class.strip(),
+        lap_time,
+    )
+    return res.json({
+        "message": "Time submitted successfully",
+        "saved": result.get("saved"),
+        "action": result.get("action"),
+    })
 
 
 # Routes - User
@@ -373,6 +526,7 @@ async def discord_callback(req: Request, res: Response):
 @app.on_startup
 async def startup():
     logger.info("Starting LMU Times Bot Backend")
+    logger.info("Backend log file: %s", LOG_FILE)
     await database.init(DATABASE_PATH)
 
 @app.on_shutdown

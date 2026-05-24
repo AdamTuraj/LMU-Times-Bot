@@ -170,44 +170,188 @@ class Database:
             logger.error("Error fetching leaderboards: %s", e)
             raise DatabaseError(f"Error fetching leaderboards: {e}")
 
-    async def submit_lap_time(self, track, user_id, driver_name, car, car_class, time_data):
+    async def submit_lap_time(
+        self,
+        track,
+        user_id,
+        driver_name,
+        car,
+        car_class,
+        time_data,
+        request_id=None,
+    ):
+        log_id = request_id or "no-request-id"
         try:
             new_lap = time_data.get("lap")
+            new_sector1 = time_data.get("sector1")
+            new_sector2 = time_data.get("sector2")
+
+            logger.info(
+                "[%s] Evaluating lap submit: track='%s' user_id='%s' driver_name='%s' "
+                "car='%s' class='%s' lap=%.3f sector1=%.3f sector2=%.3f",
+                log_id,
+                track,
+                user_id,
+                driver_name,
+                car,
+                car_class,
+                new_lap,
+                new_sector1,
+                new_sector2,
+            )
 
             async with self.conn.execute(
-                "SELECT id, lap_time FROM lap_times WHERE track = ? AND user_id = ?",
+                "SELECT COUNT(*) FROM lap_times WHERE track = ? AND user_id = ?",
+                (track, user_id)
+            ) as cursor:
+                matching_rows = (await cursor.fetchone())[0]
+
+            if matching_rows > 1:
+                logger.warning(
+                    "[%s] Found %d existing lap rows for same track/user. "
+                    "Only the oldest row will be considered for update: track='%s' user_id='%s'",
+                    log_id,
+                    matching_rows,
+                    track,
+                    user_id,
+                )
+
+            async with self.conn.execute(
+                """
+                SELECT id, driver_name, car, class, lap_time, sector1, sector2
+                FROM lap_times
+                WHERE track = ? AND user_id = ?
+                ORDER BY id ASC
+                LIMIT 1
+                """,
                 (track, user_id)
             ) as cursor:
                 existing = await cursor.fetchone()
 
             if existing:
-                existing_id, existing_lap = existing
+                (
+                    existing_id,
+                    existing_driver_name,
+                    existing_car,
+                    existing_class,
+                    existing_lap,
+                    existing_sector1,
+                    existing_sector2,
+                ) = existing
+                logger.info(
+                    "[%s] Existing lap row found: row_id=%s track='%s' user_id='%s' "
+                    "driver_name='%s' car='%s' class='%s' lap=%s sector1=%s sector2=%s",
+                    log_id,
+                    existing_id,
+                    track,
+                    user_id,
+                    existing_driver_name,
+                    existing_car,
+                    existing_class,
+                    existing_lap,
+                    existing_sector1,
+                    existing_sector2,
+                )
+
                 if new_lap is not None and (existing_lap is None or new_lap < existing_lap):
+                    if existing_driver_name != driver_name:
+                        logger.warning(
+                            "[%s] Replacing displayed driver name for same track/user: "
+                            "track='%s' user_id='%s' old_driver='%s' new_driver='%s'",
+                            log_id,
+                            track,
+                            user_id,
+                            existing_driver_name,
+                            driver_name,
+                        )
+                    if existing_car != car or existing_class != car_class:
+                        logger.warning(
+                            "[%s] Replacing car/class for same track/user: track='%s' user_id='%s' "
+                            "old_car='%s' old_class='%s' new_car='%s' new_class='%s'",
+                            log_id,
+                            track,
+                            user_id,
+                            existing_car,
+                            existing_class,
+                            car,
+                            car_class,
+                        )
+
                     await self.conn.execute(
                         """
                         UPDATE lap_times 
                         SET driver_name = ?, car = ?, class = ?, lap_time = ?, sector1 = ?, sector2 = ?
                         WHERE id = ?
                         """,
-                        (driver_name, car, car_class, new_lap, time_data.get("sector1"), time_data.get("sector2"), existing_id)
+                        (driver_name, car, car_class, new_lap, new_sector1, new_sector2, existing_id)
                     )
                     await self.conn.commit()
-                    logger.info("Updated lap time for %s: %.3f", driver_name, new_lap)
-                    return True
-                return False
+                    logger.info(
+                        "[%s] Updated lap row: row_id=%s track='%s' user_id='%s' "
+                        "old_lap=%s new_lap=%.3f delta=%s",
+                        log_id,
+                        existing_id,
+                        track,
+                        user_id,
+                        existing_lap,
+                        new_lap,
+                        None if existing_lap is None else round(existing_lap - new_lap, 3),
+                    )
+                    return {
+                        "saved": True,
+                        "action": "updated",
+                        "row_id": existing_id,
+                        "previous_lap": existing_lap,
+                        "new_lap": new_lap,
+                    }
+
+                logger.info(
+                    "[%s] Ignored lap because it did not improve existing best: "
+                    "track='%s' user_id='%s' driver_name='%s' incoming_lap=%.3f existing_lap=%s",
+                    log_id,
+                    track,
+                    user_id,
+                    driver_name,
+                    new_lap,
+                    existing_lap,
+                )
+                return {
+                    "saved": False,
+                    "action": "ignored_not_faster",
+                    "row_id": existing_id,
+                    "previous_lap": existing_lap,
+                    "new_lap": new_lap,
+                }
             else:
-                await self.conn.execute(
+                cursor = await self.conn.execute(
                     """
                     INSERT INTO lap_times (track, user_id, driver_name, car, class, lap_time, sector1, sector2)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (track, user_id, driver_name, car, car_class, new_lap, time_data.get("sector1"), time_data.get("sector2"))
+                    (track, user_id, driver_name, car, car_class, new_lap, new_sector1, new_sector2)
                 )
                 await self.conn.commit()
-                logger.info("Submitted lap time for %s", driver_name)
-                return True
+                logger.info(
+                    "[%s] Inserted lap row: row_id=%s track='%s' user_id='%s' "
+                    "driver_name='%s' car='%s' class='%s' lap=%.3f",
+                    log_id,
+                    cursor.lastrowid,
+                    track,
+                    user_id,
+                    driver_name,
+                    car,
+                    car_class,
+                    new_lap,
+                )
+                return {
+                    "saved": True,
+                    "action": "inserted",
+                    "row_id": cursor.lastrowid,
+                    "previous_lap": None,
+                    "new_lap": new_lap,
+                }
         except aiosqlite.Error as e:
-            logger.error("Error submitting lap time: %s", e)
+            logger.exception("[%s] Error submitting lap time: %s", log_id, e)
             raise DatabaseError(f"Error submitting lap time: {e}")
 
     async def is_blacklisted(self, user_id):

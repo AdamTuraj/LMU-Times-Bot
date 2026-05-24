@@ -140,6 +140,9 @@ sudo journalctl -u lmu-backend.service
 sudo journalctl -u lmu-discord-bot.service
 ```
 
+The backend also writes a rotating log file at `Backend/logs/backend.log` by default.
+Set `BACKEND_LOG_FILE` or `LOG_FILE` in `Backend/.env` to use a different path.
+
 ### 5. Firewall Configuration
 
 Open the required port for the Backend API:
