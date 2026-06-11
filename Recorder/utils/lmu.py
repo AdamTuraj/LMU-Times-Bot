@@ -103,30 +103,6 @@ class LMU:
         except Exception:
             return None
         
-    def update_weather(self, node, setting, value, current_weather):
-        """Set weather conditions. Expects node (e.g. 'NODE_25'), setting (e.g. 'temperature'), and value."""
-        current_data = current_weather.get(setting, {}).get("currentValue")
-
-        if current_data is None:
-            logger.warning("Current value for %s at node %s not found in weather data", setting, node)
-            return "Failed to set weather: current value not found"
-        
-        if current_data == value:
-            logger.info("Weather setting %s at node %s already at desired value %s", setting, node, value)
-            return None
-
-        logger.info("Updating weather: node=%s, setting=%s, value=%s (current: %s)", node, setting, value, current_data)
-
-        url = f"rest/sessions/weather/PRACTICE/{node}/{setting}"
-        res = self.post(url, data=str(value - current_data), headers=TEXT_HEADERS)
-
-        if res is not None and res.get(setting, {}).get("currentValue", None) == value:
-            logger.info("Weather setting updated successfully")
-            return None
-        else:
-            logger.warning("Failed to set weather setting. Response: %s", res)
-            return "Weather setting update failed"
-        
     def set_session_setting(self, session_setting, value, expected):
         """Set a session setting. Expects the setting name (e.g. 'SESSSET_practice1_starting_time') and the value."""
         url = "rest/sessions/settings"
@@ -149,10 +125,6 @@ class LMU:
             return self.connected
         except Exception:
             return False
-
-    def get_session_state(self):
-        """Get navigation/session state."""
-        return self.get("navigation/state")
 
     def get_session_info(self):
         """Get game state info."""
@@ -193,14 +165,6 @@ class LMU:
 
         logger.warning("Could not resolve track '%s' through getTracksAll; using it as-is", track)
         return track, None
-    
-    def get_grip_level(self):
-        """Get current grip level."""
-        data = self.get("rest/sessions")
-
-        if data and "SESSSET_pract1_realroad_init" in data:
-            return data["SESSSET_pract1_realroad_init"].get("currentValue")
-        return None
     
     def get_active_setup(self):
         """Get current setups."""
@@ -552,119 +516,3 @@ class LMU:
 
         logger.info("Generated session loaded successfully")
         return True, None
-    
-    def set_session(self, weather, time):
-        """Sets up the session. Expects a dict with keys: temperature, rain, condition, grip_level and the time."""
-        
-        current_data = self.get("rest/sessions")
-
-        # Practice only session
-        logger.info("Setting practice only session.")
-        current_pract1 = current_data.get("SESSSET_pract1", {}).get("currentValue")
-        if current_pract1 is None:
-            logger.warning("Current practice session value not found in session data")
-            return "Current practice session value not found"
-        
-        if current_pract1 == 1:
-            logger.info("Practice session already active")
-        else:
-            res = self.set_session_setting("SESSSET_pract1", 1, 1)
-            if res is not None:
-                return res
-            
-        # Disabling qualifying
-        logger.info("Disabling qualifying")
-        current_qual = current_data.get("SESSSET_num_qual_sessions", {}).get("currentValue")
-        if current_qual is None:
-            logger.warning("Current qualifying session value not found in session data")
-            return "Current qualifying session value not found"
-        
-        if current_qual == 0:
-            logger.info("Qualifying session already disabled")
-        else:
-            res = self.set_session_setting("SESSSET_num_qual_sessions", -current_qual, 0)
-            if res is not None:
-                return res
-        
-        # Disabling race
-        logger.info("Disabling race")
-        current_race = current_data.get("SESSSET_num_race_sessions", {}).get("currentValue")
-        if current_race is None:
-            logger.warning("Current race session value not found in session data")
-            return "Current race session value not found"
-        
-        if current_race == 0:
-            logger.info("Race session already disabled")
-        else:
-            res = self.set_session_setting("SESSSET_num_race_sessions", -current_race, 0)
-            if res is not None:
-                return res
-            
-        # Set timescale to static
-        logger.info("Setting timescale to static (0)")
-        current_timescale = current_data.get("SESSSET_realroad_timescale_practice", {}).get("currentValue")
-        if current_timescale is None:
-            logger.warning("Current timescale value not found in session data")
-            return "Current timescale value not found"
-        
-        if current_timescale == 0:
-            logger.info("Timescale already at static (0)")
-        else:
-            res = self.set_session_setting("SESSSET_realroad_timescale_practice", -current_timescale, 0)
-            if res is not None:
-                return res
-
-        # Set time
-        logger.info("Setting time of day to %s", time)
-
-        current_time = current_data.get("SESSSET_practice1_starting_time", {}).get("currentValue")
-        if current_time is None:
-            logger.warning("Current time not found in session data")
-            return "Current time not found"
-        
-        if current_time == time:
-            logger.info("Time of day already at desired value %s", time)
-        else:
-            res = self.set_session_setting("SESSSET_practice1_starting_time", time - current_time, time)
-            if res is not None:
-                return res
-
-        # Set grip level
-        target_grip = weather.get("grip_level", 0)
-
-        logger.info("Setting grip level to %s", target_grip)
-
-        current_grip = current_data.get("SESSSET_pract1_realroad_init", {}).get("currentValue")
-        if current_grip is None:
-            logger.warning("Current grip level not found in session data")
-            return "Current grip level not found"
-        
-        if current_grip == target_grip:
-            logger.info("Grip level already at desired value %s", current_grip)
-        else:
-            res = self.set_session_setting("SESSSET_pract1_realroad_init", target_grip - current_grip, target_grip)
-            if res is not None:
-                return res
-
-        # Set weather for all nodes
-        logger.info("Setting weather conditions for all nodes")
-
-        current_weather = self.get_weather()["PRACTICE"]
-
-        nodes = ["START", "NODE_25", "NODE_50", "NODE_75", "FINISH"]
-        for n in nodes:
-            res = self.update_weather(n, "WNV_SKY", weather.get("condition", 0), current_weather[n])
-            if res is not None:
-                return res
-            
-            res = self.update_weather(n, "WNV_RAIN_CHANCE", weather.get("rain", 0), current_weather[n])
-            if res is not None:
-                return res
-
-            res = self.update_weather(n, "WNV_TEMPERATURE", weather.get("temperature", 25), current_weather[n])
-            if res is not None:
-                return res
-            
-        logger.info("Weather setup successfully")
-
-        return None

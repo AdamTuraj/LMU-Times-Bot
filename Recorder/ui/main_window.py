@@ -25,10 +25,11 @@ import sys
 import threading
 import webbrowser
 
-from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtCore import pyqtSignal, Qt, QSettings
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QLabel,
     QMainWindow,
@@ -44,6 +45,7 @@ from PyQt6.QtWidgets import (
 from config.settings import (
     __version__,
     APP_NAME,
+    SERVICE_NAME,
     CAR_CLASS_NAMES,
     OAUTH_CALLBACK_PORT,
     POLL_INTERVAL,
@@ -126,6 +128,14 @@ class MainWindow(QMainWindow):
         self.selected_car = None
         self.lmu_connected = False
         self.loading_session = False
+        self.poll_thread = None
+        self.end_watcher_thread = None
+        self.settings = QSettings(SERVICE_NAME, APP_NAME)
+        self.hide_on_recording_start = self.settings.value(
+            "hide_on_recording_start",
+            False,
+            type=bool
+        )
 
         # Try to restore session
         self._restore_session()
@@ -290,8 +300,18 @@ class MainWindow(QMainWindow):
         logout_btn.clicked.connect(self.logout)
         self.layout.addWidget(logout_btn)
 
+        self.hide_on_recording_checkbox = QCheckBox("Hide when recording starts")
+        self.hide_on_recording_checkbox.setObjectName("hideOnRecordingToggle")
+        self.hide_on_recording_checkbox.setChecked(self.hide_on_recording_start)
+        self.hide_on_recording_checkbox.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.hide_on_recording_checkbox.stateChanged.connect(self.on_hide_on_recording_changed)
+        self.layout.addWidget(
+            self.hide_on_recording_checkbox,
+            alignment=Qt.AlignmentFlag.AlignRight
+        )
+
         threading.Thread(target=self.load_leaderboards, daemon=True).start()
-        threading.Thread(target=self.poll_lmu, daemon=True).start()
+        self.start_polling_lmu()
 
     def add_login_ui(self):
         """Add UI for logged out state."""
@@ -317,6 +337,7 @@ class MainWindow(QMainWindow):
         self.car_combo = None
         self.load_session_btn = None
         self.loading_indicator = None
+        self.hide_on_recording_checkbox = None
         while self.layout.count():
             item = self.layout.takeAt(0)
             if item.widget():
@@ -381,6 +402,8 @@ class MainWindow(QMainWindow):
 
         car = self.car_combo.itemData(index)
         self.selected_car = car if isinstance(car, dict) else None
+        if self.selected_car and not self.resolve_car_model(self.selected_car):
+            self.update_status("Selected car could not be identified. Update car_models.json before loading.")
         self._update_load_button_state()
 
     def load_cars_for_leaderboard(self, leaderboard):
@@ -454,14 +477,19 @@ class MainWindow(QMainWindow):
 
     def format_car_label(self, car):
         """Build the visible car selector label."""
-        model = self.car_models.get(car.get("sig"))
-        if not model:
-            full_path = car.get("fullPathTree") or ""
-            model = full_path.split(",")[-1].strip() if full_path else None
-        if not model:
-            model = car.get("manufacturer") or car.get("desc") or car.get("vehicle") or car.get("id")
-
+        model = self.resolve_car_model(car) or "Unidentified car"
         return str(model)
+
+    def resolve_car_model(self, car):
+        """Resolve a selected LMU vehicle to the backend car model name."""
+        if not isinstance(car, dict):
+            return None
+
+        sig = car.get("sig")
+        if not sig:
+            return None
+
+        return self.car_models.get(sig)
 
     def _update_load_button_state(self):
         if not hasattr(self, "load_session_btn") or self.load_session_btn is None:
@@ -471,9 +499,15 @@ class MainWindow(QMainWindow):
             self.lmu_connected
             and bool(self.selected_leaderboard)
             and bool(self.selected_car)
+            and bool(self.resolve_car_model(self.selected_car))
             and not self.loading_session
         )
         self.load_session_btn.setEnabled(can_load)
+
+    def on_hide_on_recording_changed(self, _state=None):
+        """Persist whether recording start should hide the window."""
+        self.hide_on_recording_start = bool(self.hide_on_recording_checkbox.isChecked())
+        self.settings.setValue("hide_on_recording_start", self.hide_on_recording_start)
 
     # ============================================================
     # Status Updates
@@ -528,6 +562,12 @@ class MainWindow(QMainWindow):
         """Start LMU save generation/load for the selected leaderboard and car."""
         if not self.selected_leaderboard or not self.selected_car:
             return
+        if not self.resolve_car_model(self.selected_car):
+            self.update_status("Selected car could not be identified. Update car_models.json before loading.")
+            play_error_sound()
+            return
+        if self.recorder and self.recorder.is_recording:
+            self.recorder.stop_recording()
 
         leaderboard = dict(self.selected_leaderboard)
         car = dict(self.selected_car)
@@ -547,6 +587,7 @@ class MainWindow(QMainWindow):
         """Handle loadGame result."""
         if success:
             self.on_set_loading(True, "Session loaded. Waiting for LMU...")
+            self.start_polling_lmu()
             return
 
         play_error_sound()
@@ -646,6 +687,9 @@ class MainWindow(QMainWindow):
                     self.status_label.setText(f"Logged in as {self.username}\n\nLogout failed. Try again.")
                 return
 
+        if self.recorder:
+            self.recorder.stop_recording()
+
         delete_token()
         self.logged_in = False
         self.token = None
@@ -656,6 +700,7 @@ class MainWindow(QMainWindow):
         self.valid_cars = []
         self.selected_car = None
         self.loading_session = False
+        self.hide_on_recording_checkbox = None
 
         self.clear_layout()
         self.add_login_ui()
@@ -664,21 +709,31 @@ class MainWindow(QMainWindow):
     # ============================================================
     # LMU Polling & Session Management
     # ============================================================
+    def start_polling_lmu(self):
+        """Start one LMU polling worker if one is not already active."""
+        if self.poll_thread and self.poll_thread.is_alive():
+            return
+        self.poll_thread = threading.Thread(target=self.poll_lmu, daemon=True)
+        self.poll_thread.start()
+
     def poll_lmu(self):
         """Poll for LMU connection and session."""
         logger.info("Polling for LMU...")
 
-        while True:
-            while not self.lmu.attempt_connection():
+        while self.logged_in:
+            while self.logged_in and not self.lmu.attempt_connection():
                 if self.lmu_connected:
                     self.lmu_connected_signal.emit(False)
                 threading.Event().wait(POLL_INTERVAL)
+
+            if not self.logged_in:
+                return
 
             logger.info("LMU connected")
             self.lmu_connected_signal.emit(True)
             self.update_status("LMU connected. Select a leaderboard and car.")
 
-            while True:
+            while self.logged_in:
                 state = self.lmu.get_session_info()
 
                 if state is False:
@@ -687,14 +742,14 @@ class MainWindow(QMainWindow):
                     self.update_status("Waiting for LMU...")
                     break
 
-                if state and state.get("inControlOfVehicle"):
+                if isinstance(state, dict) and state.get("inControlOfVehicle"):
                     logger.info("Session started")
                     self.set_loading_signal.emit(False, "Session started!")
                     break
 
                 threading.Event().wait(POLL_INTERVAL)
 
-            if state and state.get("inControlOfVehicle"):
+            if isinstance(state, dict) and state.get("inControlOfVehicle"):
                 self.start_recording_signal.emit()
                 return
 
@@ -702,18 +757,26 @@ class MainWindow(QMainWindow):
         """Wait for session to end then resume polling."""
         logger.info("Waiting for session end...")
 
-        while True:
+        while self.logged_in:
             state = self.lmu.get_session_info()
-            if not state.get("inControlOfVehicle", False):
+            if state is False:
+                logger.info("LMU disconnected while waiting for session end")
+                self.update_status("Waiting for LMU...")
+                self.start_polling_lmu()
+                return
+            if not isinstance(state, dict) or not state.get("inControlOfVehicle", False):
                 logger.info("Session ended")
                 self.update_status("Session ended. Waiting for new session...")
-                self.poll_lmu()
+                self.start_polling_lmu()
                 return
             threading.Event().wait(POLL_INTERVAL)
 
     def start_end_watcher(self):
         """Start thread to watch for session end."""
-        threading.Thread(target=self.wait_for_session_end, daemon=True).start()
+        if self.end_watcher_thread and self.end_watcher_thread.is_alive():
+            return
+        self.end_watcher_thread = threading.Thread(target=self.wait_for_session_end, daemon=True)
+        self.end_watcher_thread.start()
 
     # ============================================================
     # Session Recording
@@ -727,7 +790,8 @@ class MainWindow(QMainWindow):
         self.show_from_tray()
         flash_window(self.winId())
         play_error_sound()
-        self.start_end_watcher()
+        if not self.recorder or not self.recorder.is_recording:
+            self.start_end_watcher()
 
     def launch_session(self):
         """Start recording for the loaded leaderboard session."""
@@ -740,7 +804,14 @@ class MainWindow(QMainWindow):
         if not track or not selected_car:
             return self.on_recording_error("No loaded leaderboard/car selected. Waiting for session end...")
 
-        self.car = self.car_models.get(selected_car.get("sig")) or self.format_car_label(selected_car)
+        car_model = self.resolve_car_model(selected_car)
+        if not car_model:
+            return self.on_recording_error("Selected car could not be identified. Update car_models.json before loading.")
+
+        if self.recorder and self.recorder.is_recording:
+            self.recorder.stop_recording()
+
+        self.car = car_model
         self.track = track
 
         def on_error(message):
@@ -748,14 +819,16 @@ class MainWindow(QMainWindow):
 
         logger.info("Recording session")
         self.update_status("Recording...")
-        self.hide_to_tray()
+        if self.hide_on_recording_start:
+            self.hide_to_tray()
 
         self.recorder.start_recording(
             track=self.track,
             car=self.car,
+            car_classes=selected_car.get("classes", []),
             fixed_setup=lb_info.get("fixed_setup", False),
             update_callback=self.update_status,
-            on_session_end=self.poll_lmu,
-            on_disconnect=self.poll_lmu,
+            on_session_end=self.start_polling_lmu,
+            on_disconnect=self.start_polling_lmu,
             on_error=on_error
         )
