@@ -71,13 +71,28 @@ class Database:
                 user_id TEXT NOT NULL,
                 driver_name TEXT NOT NULL,
                 car TEXT NOT NULL,
-                class TEXT,
+                class TEXT NOT NULL,
                 lap_time REAL,
                 sector1 REAL,
                 sector2 REAL,
                 FOREIGN KEY (track) REFERENCES leaderboards(track)
             )
         """)
+
+        await self.conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_lap_times_track_user_class_lookup
+            ON lap_times(track, user_id, class)
+        """)
+        try:
+            await self.conn.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_lap_times_track_user_class
+                ON lap_times(track, user_id, class)
+            """)
+        except aiosqlite.IntegrityError:
+            logger.warning(
+                "Could not create unique lap_times(track, user_id, class) index. "
+                "Run scripts/migrate_lap_times_per_class.py to merge duplicate rows."
+            )
 
         await self.conn.execute("""
             CREATE TABLE IF NOT EXISTS blacklist (
@@ -201,30 +216,35 @@ class Database:
             )
 
             async with self.conn.execute(
-                "SELECT COUNT(*) FROM lap_times WHERE track = ? AND user_id = ?",
-                (track, user_id)
+                """
+                SELECT COUNT(*)
+                FROM lap_times
+                WHERE track = ? AND user_id = ? AND class = ?
+                """,
+                (track, user_id, car_class)
             ) as cursor:
                 matching_rows = (await cursor.fetchone())[0]
 
             if matching_rows > 1:
                 logger.warning(
-                    "[%s] Found %d existing lap rows for same track/user. "
-                    "Only the oldest row will be considered for update: track='%s' user_id='%s'",
+                    "[%s] Found %d existing lap rows for same track/user/class. "
+                    "Only the oldest row will be considered for update: track='%s' user_id='%s' class='%s'",
                     log_id,
                     matching_rows,
                     track,
                     user_id,
+                    car_class,
                 )
 
             async with self.conn.execute(
                 """
                 SELECT id, driver_name, car, class, lap_time, sector1, sector2
                 FROM lap_times
-                WHERE track = ? AND user_id = ?
+                WHERE track = ? AND user_id = ? AND class = ?
                 ORDER BY id ASC
                 LIMIT 1
                 """,
-                (track, user_id)
+                (track, user_id, car_class)
             ) as cursor:
                 existing = await cursor.fetchone()
 
@@ -256,25 +276,25 @@ class Database:
                 if new_lap is not None and (existing_lap is None or new_lap < existing_lap):
                     if existing_driver_name != driver_name:
                         logger.warning(
-                            "[%s] Replacing displayed driver name for same track/user: "
-                            "track='%s' user_id='%s' old_driver='%s' new_driver='%s'",
+                            "[%s] Replacing displayed driver name for same track/user/class: "
+                            "track='%s' user_id='%s' class='%s' old_driver='%s' new_driver='%s'",
                             log_id,
                             track,
                             user_id,
+                            car_class,
                             existing_driver_name,
                             driver_name,
                         )
-                    if existing_car != car or existing_class != car_class:
+                    if existing_car != car:
                         logger.warning(
-                            "[%s] Replacing car/class for same track/user: track='%s' user_id='%s' "
-                            "old_car='%s' old_class='%s' new_car='%s' new_class='%s'",
+                            "[%s] Replacing car for same track/user/class: track='%s' user_id='%s' class='%s' "
+                            "old_car='%s' new_car='%s'",
                             log_id,
                             track,
                             user_id,
-                            existing_car,
-                            existing_class,
-                            car,
                             car_class,
+                            existing_car,
+                            car,
                         )
 
                     await self.conn.execute(

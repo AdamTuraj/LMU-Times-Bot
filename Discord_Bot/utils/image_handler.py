@@ -61,6 +61,14 @@ CLASS_COLORS = {
     "Hyper": "#3a1a1a"
 }
 
+CLASS_ALIASES = {
+    "LMGT3": "GT3",
+    "HYPERCAR": "Hyper",
+    "HYPER": "Hyper",
+    "LMP2_ELMS": "LMP2",
+    "LMP2_UNRESTRICTED": "LMP2",
+}
+
 
 def adjust_brightness(hex_color: str, factor: float) -> str:
     """Adjust the brightness of a hex color."""
@@ -84,6 +92,11 @@ def format_sector(time: float | None) -> str:
     return f"{time:.3f}"
 
 
+def normalize_class_name(car_class: str | None) -> str:
+    value = str(car_class or "").strip()
+    return CLASS_ALIASES.get(value.upper(), value)
+
+
 def format_data(data: list[dict[str, Any]], show_technical: bool = True) -> list[list[Any]]:
     if not data:
         logger.warning("No data provided to format_data")
@@ -98,9 +111,7 @@ def format_data(data: list[dict[str, Any]], show_technical: bool = True) -> list
         driver["sector1"] = float(sector1) if sector1 is not None else -1
         driver["sector2"] = float(sector2) if sector2 is not None else -1
         
-        # Normalize class name
-        if driver.get("car_class") == "LMP2_ELMS":
-            driver["car_class"] = "LMP2"
+        driver["car_class"] = normalize_class_name(driver.get("car_class"))
     
     # Filter out invalid laps if not showing technical
     if not show_technical:
@@ -108,10 +119,10 @@ def format_data(data: list[dict[str, Any]], show_technical: bool = True) -> list
     
     # Calculate class positions AFTER filtering
     class_leaders = {}
-    class_tracker = {"GT3": 0, "GTE": 0, "LMP3": 0, "LMP2": 0, "Hyper": 0}
+    class_tracker = {}
     for driver in sorted_data:
         car_class = driver.get("car_class")
-        class_tracker[car_class] += 1
+        class_tracker[car_class] = class_tracker.get(car_class, 0) + 1
         driver["class_pos"] = class_tracker[car_class]
 
         if car_class not in class_leaders:

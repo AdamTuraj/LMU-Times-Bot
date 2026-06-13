@@ -118,6 +118,33 @@ def get_stylesheet():
             background-color: #0078d4;
             border-radius: 4px;
         }
+        QCheckBox#hideOnRecordingToggle {
+            color: #4b5563;
+            background-color: white;
+            border: 1px solid #d6d6d6;
+            border-radius: 5px;
+            padding: 5px 9px;
+            spacing: 7px;
+            font-size: 8.5pt;
+        }
+        QCheckBox#hideOnRecordingToggle:hover {
+            border-color: #9ca3af;
+            color: #1f2937;
+        }
+        QCheckBox#hideOnRecordingToggle::indicator {
+            width: 13px;
+            height: 13px;
+            border: 1px solid #cbd5e1;
+            border-radius: 3px;
+            background-color: #f8fafc;
+        }
+        QCheckBox#hideOnRecordingToggle::indicator:hover {
+            border-color: #94a3b8;
+        }
+        QCheckBox#hideOnRecordingToggle::indicator:checked {
+            background-color: #0078d4;
+            border-color: #0078d4;
+        }
         QPushButton {
             background-color: #0078d4;
             color: white;

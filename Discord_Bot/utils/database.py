@@ -89,13 +89,28 @@ class Database:
                     user_id TEXT NOT NULL,
                     driver_name TEXT NOT NULL,
                     car TEXT NOT NULL,
-                    class TEXT,
+                    class TEXT NOT NULL,
                     lap_time REAL,
                     sector1 REAL,
                     sector2 REAL,
                     FOREIGN KEY (track) REFERENCES leaderboards(track)
                 )
             """)
+
+            await self._conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_lap_times_track_user_class_lookup
+                ON lap_times(track, user_id, class)
+            """)
+            try:
+                await self._conn.execute("""
+                    CREATE UNIQUE INDEX IF NOT EXISTS uq_lap_times_track_user_class
+                    ON lap_times(track, user_id, class)
+                """)
+            except aiosqlite.IntegrityError:
+                logger.warning(
+                    "Could not create unique lap_times(track, user_id, class) index. "
+                    "Run scripts/migrate_lap_times_per_class.py to merge duplicate rows."
+                )
 
             await self._conn.execute("""
                 CREATE TABLE IF NOT EXISTS blacklist (
