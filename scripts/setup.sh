@@ -6,7 +6,7 @@ set -euo pipefail
 #
 # Generates:
 #   ./Backend/.env
-#   ./Discord Bot/.env
+#   ./Discord_Bot/.env
 # ------------------------------------------------------------
 
 # ---------- Helpers ----------
@@ -31,7 +31,7 @@ require_dir() {
   local d="$1"
   if [[ ! -d "$d" ]]; then
     echo "ERROR: Expected directory not found: $d"
-    echo "Run this script from the project root (the folder containing Backend / Discord Bot / Recorder)."
+    echo "Run this script from the project root (the folder containing Backend / Discord_Bot / Recorder)."
     exit 1
   fi
 }
@@ -171,7 +171,7 @@ PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 require_dir "./Backend"
-require_dir "./Discord Bot"
+require_dir "./Discord_Bot"
 PYTHON_BIN="$(pick_python)"
 install_venv_support_if_needed "$PYTHON_BIN"
 
@@ -237,16 +237,16 @@ echo
 
 echo "=== Writing .env files ==="
 write_env_backend "./Backend/.env"
-write_env_discord_bot "./Discord Bot/.env"
+write_env_discord_bot "./Discord_Bot/.env"
 
 echo "Wrote:"
 echo "  ./Backend/.env"
-echo "  ./Discord Bot/.env"
+echo "  ./Discord_Bot/.env"
 echo
 
 echo "=== Creating venvs + installing requirements ==="
 venv_install_requirements "./Backend" "$PYTHON_BIN"
-venv_install_requirements "./Discord Bot" "$PYTHON_BIN"
+venv_install_requirements "./Discord_Bot" "$PYTHON_BIN"
 
 echo
 echo "Done."

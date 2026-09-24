@@ -7,7 +7,7 @@ A timing system for Le Mans Ultimate (LMU) that records lap times with a Discord
 ```
 LMU Times Bot/
 ├── Backend/        # API server for storing and retrieving timing data
-├── Discord Bot/    # Discord bot for interacting with timing data
+├── Discord_Bot/    # Discord bot for interacting with timing data
 ├── Recorder/       # Application that captures lap times from LMU
 └── scripts/        # Build and setup scripts
 ```
