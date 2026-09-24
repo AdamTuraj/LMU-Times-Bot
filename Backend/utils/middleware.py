@@ -138,10 +138,10 @@ async def rate_limit_middleware(req, res, call_next, logger):
         is_limited, reset_time = check_rate_limit(client_id, limiter_type)
         if is_limited:
             logger.warning("Rate limit exceeded for %s on %s", client_id, path)
-            return res.status(429).json({
+            return res.json({
                 "error": "Rate limit exceeded",
                 "retry_after": reset_time
-            })
+            }, status_code=429)
 
     return await call_next()
 
@@ -155,17 +155,17 @@ async def auth_middleware(req, res, call_next, database, logger):
 
         if not token:
             logger.warning("Missing auth token for %s", path)
-            return res.status(401).json({"error": "Missing Authorization header"})
+            return res.json({"error": "Missing Authorization header"}, status_code=401)
 
         try:
             user = await database.get_user_by_token(token)
         except DatabaseError as e:
             logger.error("Database error: %s", e)
-            return res.status(500).json({"error": "Internal server error"})
+            return res.json({"error": "Internal server error"}, status_code=500)
 
         if not user:
             logger.warning("Invalid token for %s", path)
-            return res.status(401).json({"error": "Invalid token"})
+            return res.json({"error": "Invalid token"}, status_code=401)
 
         req.state.user = user
         req.state.token = token

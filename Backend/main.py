@@ -32,7 +32,7 @@ from pathlib import Path
 
 from aiohttp import ClientSession, BasicAuth
 from dotenv import load_dotenv
-from nexios import NexiosApp, MakeConfig
+from nexios import NexiosApp
 from nexios.http import Request, Response
 
 from utils.database import Database, DatabaseError
@@ -116,16 +116,7 @@ DISCORD_API = "https://discord.com/api/v10"
 
 # Initialize app
 app = NexiosApp(
-    config=MakeConfig(
-        debug=DEBUG,
-        port=PORT,
-        host=HOST,
-        discord_client_id=DISCORD_CLIENT_ID,
-        discord_client_secret=DISCORD_CLIENT_SECRET,
-        discord_callback_url=DISCORD_CALLBACK_URL,
-        home_guild_id=HOME_GUILD_ID,
-        application_callback=APPLICATION_CALLBACK,
-    ),
+    debug=DEBUG,
     title="LMU Times Bot Backend",
     version="0.1.0"
 )
@@ -142,10 +133,10 @@ async def exchange_code_for_token(code):
     data = {
         "grant_type": "authorization_code",
         "code": code,
-        "redirect_uri": app.config.discord_callback_url,
+        "redirect_uri": DISCORD_CALLBACK_URL,
     }
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
-    auth = BasicAuth(app.config.discord_client_id, app.config.discord_client_secret)
+    auth = BasicAuth(DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET)
 
     async with ClientSession() as session:
         async with session.post(f"{DISCORD_API}/oauth2/token", data=data, headers=headers, auth=auth) as resp:
@@ -188,7 +179,7 @@ async def get_version(req: Request, res: Response):
             version = f.read().strip()
     except Exception as e:
         logger.error("Error reading version file: %s", e)
-        return res.status(500).json({"error": "Internal server error"})
+        return res.json({"error": "Internal server error"}, status_code=500)
 
     return res.json({"version": version})
 
@@ -234,36 +225,34 @@ async def get_leaderboards(req: Request, res: Response):
         leaderboards = await database.get_all_leaderboards()
     except DatabaseError as e:
         logger.error("Database error: %s", e)
-        return res.status(500).json({"error": "Internal server error"})
+        return res.json({"error": "Internal server error"}, status_code=500)
 
     return res.json([leaderboard_to_response(lb) for lb in leaderboards])
 
 
 @app.get("/leaderboard/{track}")
-async def get_leaderboard(req: Request, res: Response):
-    track = req.path_params.get("track")
+async def get_leaderboard(req: Request, res: Response, track: str):
     if not track:
-        return res.status(400).json({"error": "Track parameter required"})
+        return res.json({"error": "Track parameter required"}, status_code=400)
 
     try:
         leaderboard = await database.get_leaderboard(track)
     except DatabaseError as e:
         logger.error("Database error: %s", e)
-        return res.status(500).json({"error": "Internal server error"})
+        return res.json({"error": "Internal server error"}, status_code=500)
 
     if not leaderboard:
-        return res.status(404).json({"error": "Leaderboard not found"})
+        return res.json({"error": "Leaderboard not found"}, status_code=404)
 
     return res.json(leaderboard_to_response(leaderboard))
 
 
 @app.post("/leaderboard/{track}/submit")
-async def submit_time(req: Request, res: Response):
+async def submit_time(req: Request, res: Response, track: str):
     request_id = uuid.uuid4().hex[:12]
-    track = req.path_params.get("track")
     if not track:
         logger.warning("[%s] Rejected submit with missing track", request_id)
-        return res.status(400).json({"error": "Track parameter required"})
+        return res.json({"error": "Track parameter required"}, status_code=400)
 
     user = req.state.user
     logger.info(
@@ -283,16 +272,16 @@ async def submit_time(req: Request, res: Response):
                 user[1],
                 user[2],
             )
-            return res.status(403).json({"error": "You are blacklisted"})
+            return res.json({"error": "You are blacklisted"}, status_code=403)
     except DatabaseError as e:
         logger.error("[%s] Database error checking blacklist: %s", request_id, e)
-        return res.status(500).json({"error": "Internal server error"})
+        return res.json({"error": "Internal server error"}, status_code=500)
 
     try:
         body = await req.json
     except Exception:
         logger.warning("[%s] Rejected submit with invalid JSON body", request_id)
-        return res.status(400).json({"error": "Invalid JSON body"})
+        return res.json({"error": "Invalid JSON body"}, status_code=400)
 
     time_data = body.get("time_data")
     car = body.get("car")
@@ -311,16 +300,16 @@ async def submit_time(req: Request, res: Response):
     # Validate required fields
     if not time_data or not isinstance(time_data, dict):
         logger.warning("[%s] Rejected submit with invalid time_data: %r", request_id, time_data)
-        return res.status(400).json({"error": "time_data is required and must be an object"})
+        return res.json({"error": "time_data is required and must be an object"}, status_code=400)
     if not car or not isinstance(car, str) or not car.strip():
         logger.warning("[%s] Rejected submit with invalid car: %r", request_id, car)
-        return res.status(400).json({"error": "car is required and must be a non-empty string"})
+        return res.json({"error": "car is required and must be a non-empty string"}, status_code=400)
     if not driver_name or not isinstance(driver_name, str) or not driver_name.strip():
         logger.warning("[%s] Rejected submit with invalid driver_name: %r", request_id, driver_name)
-        return res.status(400).json({"error": "driver_name is required and must be a non-empty string"})
+        return res.json({"error": "driver_name is required and must be a non-empty string"}, status_code=400)
     if not car_class or not isinstance(car_class, str) or not car_class.strip():
         logger.warning("[%s] Rejected submit with invalid class: %r", request_id, car_class)
-        return res.status(400).json({"error": "class is required and must be a non-empty string"})
+        return res.json({"error": "class is required and must be a non-empty string"}, status_code=400)
 
     # Validate time_data structure
     lap_time = time_data.get("lap")
@@ -329,13 +318,13 @@ async def submit_time(req: Request, res: Response):
 
     if lap_time is None:
         logger.warning("[%s] Rejected submit with missing lap time", request_id)
-        return res.status(400).json({"error": "time_data.lap is required"})
+        return res.json({"error": "time_data.lap is required"}, status_code=400)
     if sector1 is None:
         logger.warning("[%s] Rejected submit with missing sector1", request_id)
-        return res.status(400).json({"error": "time_data.sector1 is required"})
+        return res.json({"error": "time_data.sector1 is required"}, status_code=400)
     if sector2 is None:
         logger.warning("[%s] Rejected submit with missing sector2", request_id)
-        return res.status(400).json({"error": "time_data.sector2 is required"})
+        return res.json({"error": "time_data.sector2 is required"}, status_code=400)
 
     # Validate time values are numbers
     try:
@@ -350,20 +339,20 @@ async def submit_time(req: Request, res: Response):
             sector1,
             sector2,
         )
-        return res.status(400).json({"error": "All time values must be numbers"})
+        return res.json({"error": "All time values must be numbers"}, status_code=400)
 
     # Validate lap_time is positive
     if lap_time <= 0:
         logger.warning("[%s] Rejected submit with non-positive lap: %.3f", request_id, lap_time)
-        return res.status(400).json({"error": "lap_time must be greater than 0"})
+        return res.json({"error": "lap_time must be greater than 0"}, status_code=400)
 
     # Validate sector times are either -1 or positive
     if sector1 != -1 and sector1 <= 0:
         logger.warning("[%s] Rejected submit with invalid sector1: %.3f", request_id, sector1)
-        return res.status(400).json({"error": "sector1 must be -1 or greater than 0"})
+        return res.json({"error": "sector1 must be -1 or greater than 0"}, status_code=400)
     if sector2 != -1 and sector2 <= 0:
         logger.warning("[%s] Rejected submit with invalid sector2: %.3f", request_id, sector2)
-        return res.status(400).json({"error": "sector2 must be -1 or greater than 0"})
+        return res.json({"error": "sector2 must be -1 or greater than 0"}, status_code=400)
 
     # Validate string lengths
     if len(driver_name) > 100:
@@ -372,17 +361,17 @@ async def submit_time(req: Request, res: Response):
             request_id,
             len(driver_name),
         )
-        return res.status(400).json({"error": "driver_name must not exceed 100 characters"})
+        return res.json({"error": "driver_name must not exceed 100 characters"}, status_code=400)
     if len(car) > 100:
         logger.warning("[%s] Rejected submit with car too long: length=%d", request_id, len(car))
-        return res.status(400).json({"error": "car must not exceed 100 characters"})
+        return res.json({"error": "car must not exceed 100 characters"}, status_code=400)
     if len(car_class) > 50:
         logger.warning(
             "[%s] Rejected submit with class too long: length=%d",
             request_id,
             len(car_class),
         )
-        return res.status(400).json({"error": "class must not exceed 50 characters"})
+        return res.json({"error": "class must not exceed 50 characters"}, status_code=400)
 
     if sector1 != -1 and sector2 != -1:
         sector3 = lap_time - sector1 - sector2
@@ -409,11 +398,11 @@ async def submit_time(req: Request, res: Response):
         leaderboard = await database.get_leaderboard(track)
     except DatabaseError as e:
         logger.error("[%s] Database error fetching leaderboard: %s", request_id, e)
-        return res.status(500).json({"error": "Internal server error"})
+        return res.json({"error": "Internal server error"}, status_code=500)
 
     if not leaderboard:
         logger.warning("[%s] Rejected submit for missing leaderboard: track='%s'", request_id, track)
-        return res.status(404).json({"error": "Leaderboard not found"})
+        return res.json({"error": "Leaderboard not found"}, status_code=404)
 
     time_data = {
         "lap": lap_time,
@@ -433,7 +422,7 @@ async def submit_time(req: Request, res: Response):
         )
     except DatabaseError as e:
         logger.error("[%s] Database error submitting lap time: %s", request_id, e)
-        return res.status(500).json({"error": "Internal server error"})
+        return res.json({"error": "Internal server error"}, status_code=500)
 
     logger.info(
         "[%s] Lap submit finished: action='%s' saved=%s track='%s' user_id='%s' "
@@ -472,7 +461,7 @@ async def user_logout(req: Request, res: Response):
         logger.info("User '%s' logged out", user[2])
     except DatabaseError as e:
         logger.error("Database error: %s", e)
-        return res.status(500).json({"error": "Internal server error"})
+        return res.json({"error": "Internal server error"}, status_code=500)
 
     return res.json({"message": "Logged out successfully"})
 
@@ -483,9 +472,9 @@ async def discord_oauth(req: Request, res: Response):
     state = req.query_params.get("state", "default")
     oauth_url = (
         f"https://discord.com/oauth2/authorize"
-        f"?client_id={app.config.discord_client_id}"
+        f"?client_id={DISCORD_CLIENT_ID}"
         f"&response_type=code"
-        f"&redirect_uri={app.config.discord_callback_url}"
+        f"&redirect_uri={DISCORD_CALLBACK_URL}"
         f"&scope=identify+guilds"
         f"&state={state}"
     )
@@ -498,17 +487,17 @@ async def discord_callback(req: Request, res: Response):
     state = req.query_params.get("state", "default")
 
     if not code:
-        return res.status(400).json({"error": "Missing code parameter"})
+        return res.json({"error": "Missing code parameter"}, status_code=400)
 
     user_data = await get_discord_user_data(code)
 
     if "error" in user_data:
-        return res.status(400).json(user_data)
+        return res.json(user_data, status_code=400)
 
     # Check guild membership
-    is_member = any(g["id"] == app.config.home_guild_id for g in user_data.get("guilds", []))
+    is_member = any(g["id"] == HOME_GUILD_ID for g in user_data.get("guilds", []))
     if not is_member:
-        return res.status(403).json({"error": "You must be a member of the Discord server"})
+        return res.json({"error": "You must be a member of the Discord server"}, status_code=403)
 
     # Create token and save user
     token = secrets.token_urlsafe(32)
@@ -518,7 +507,7 @@ async def discord_callback(req: Request, res: Response):
     await database.add_user(discord_id, username, token)
     logger.info("User '%s' authenticated", username)
 
-    redirect_url = f"{app.config.application_callback}?state={state}&code={token}&name={username}"
+    redirect_url = f"{APPLICATION_CALLBACK}?state={state}&code={token}&name={username}"
     return res.redirect(redirect_url)
 
 
@@ -538,7 +527,7 @@ async def shutdown():
 def main():
     try:
         logger.info("Server starting on %s:%d", HOST, PORT)
-        app.run()
+        app.run(host=HOST, port=PORT)
     except KeyboardInterrupt:
         logger.info("Shutdown signal received")
     except Exception as e:

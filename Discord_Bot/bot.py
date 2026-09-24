@@ -99,8 +99,42 @@ class DiscordBot(commands.Bot):
             return
 
         guild = discord.Object(id=int(guild_id))
+        logger.info(
+            "Registering commands: bot=%s bot_id=%s application_id=%s guild_id=%s",
+            self.user, self.user.id if self.user else None,
+            self.application_id, guild.id,
+        )
         self.tree.copy_global_to(guild=guild)
-        await self.tree.sync(guild=guild)
+        try:
+            await self.tree.sync(guild=guild)
+        except discord.Forbidden as exc:
+            logger.error(
+                "Discord denied command registration (HTTP %s, code %s).",
+                exc.status, exc.code,
+            )
+            # setup_hook runs before the gateway populates the guild cache.
+            # Use REST here; get_guild() would not diagnose membership reliably.
+            try:
+                accessible_guild = await self.fetch_guild(guild.id)
+            except discord.HTTPException as guild_exc:
+                logger.error(
+                    "Guild access check failed for %s (HTTP %s, code %s).",
+                    guild.id, guild_exc.status, guild_exc.code,
+                )
+            else:
+                logger.error(
+                    "Bot can access guild %s (%s), but command registration "
+                    "was denied. Reauthorize this application as a Server Install "
+                    "with the bot and applications.commands scopes.",
+                    accessible_guild.name, accessible_guild.id,
+                )
+            logger.error(
+                "Server authorization URL: https://discord.com/oauth2/authorize"
+                "?client_id=%s&scope=bot%%20applications.commands"
+                "&integration_type=0&guild_id=%s&disable_guild_select=true",
+                self.application_id, guild.id,
+            )
+            raise
         logger.info("Commands synced to guild %s", guild_id)
 
     async def setup_hook(self) -> None:
