@@ -143,9 +143,45 @@ sudo journalctl -u lmu-discord-bot.service
 The backend also writes a rotating log file at `Backend/logs/backend.log` by default.
 Set `BACKEND_LOG_FILE` or `LOG_FILE` in `Backend/.env` to use a different path.
 
-### 5. Firewall Configuration
+### 5. Nginx Reverse Proxy (optional)
 
-Open the required port for the Backend API:
+Use [scripts/nginx.conf.example](scripts/nginx.conf.example) to serve the backend on a public domain. The following commands assume Debian/Ubuntu with nginx, Certbot, and its nginx plugin installed. Point your domain's DNS records to this server first.
+
+Set `HOST=127.0.0.1` and `PORT=8000` in `Backend/.env`, then restart the backend:
+
+```bash
+sudo systemctl restart lmu-backend
+sudo cp scripts/nginx.conf.example /etc/nginx/sites-available/lmu-times-bot
+sudo nano /etc/nginx/sites-available/lmu-times-bot
+```
+
+Replace `api.example.com` with your domain. If you changed the backend port, update `proxy_pass` to match. Enable the site and validate the configuration before reloading:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/lmu-times-bot /etc/nginx/sites-enabled/lmu-times-bot
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Allow inbound TCP ports **80 and 443** in your firewall and hosting provider's network rules. Keep port 8000 private when using nginx. Enable HTTPS and HTTP-to-HTTPS redirection:
+
+```bash
+sudo certbot --nginx -d api.example.com --redirect
+sudo certbot renew --dry-run
+```
+
+Use your actual domain in the Certbot command. Set `DISCORD_CALLBACK_URL=https://api.example.com/discord/callback` in `Backend/.env` and register that exact URL in your Discord application's OAuth2 redirects. Restart `lmu-backend` after changing its configuration. Use `https://api.example.com` as the Recorder's backend API URL; keep `APPLICATION_CALLBACK` as the Recorder's local callback address.
+
+Verify the public endpoint:
+
+```bash
+curl --fail https://api.example.com/version
+```
+
+See the [nginx proxy documentation](https://nginx.org/en/docs/http/ngx_http_proxy_module.html) and [Certbot nginx instructions](https://eff-certbot.readthedocs.io/en/stable/using.html#nginx) for details.
+
+### 6. Firewall Configuration (direct backend access)
+
+If you are exposing the Backend API directly without nginx, open its port:
 
 ```bash
 # Using UFW (Ubuntu/Debian)
