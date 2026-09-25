@@ -35,6 +35,25 @@ from utils.types import Classes, Tracks, WeatherConditions, GripLevel
 logger = logging.getLogger(__name__)
 
 
+class TrackTransformer(app_commands.Transformer):
+    """Search the track catalog without a fixed slash-command choice list."""
+
+    async def autocomplete(self, interaction: discord.Interaction, value: str):
+        query = value.casefold().replace("_", " ").strip()
+        return [
+            app_commands.Choice(name=track.name.replace("_", " "), value=track.value)
+            for track in Tracks
+            if query in track.name.replace("_", " ").casefold()
+            or query in track.value.casefold()
+        ][:25]
+
+    async def transform(self, interaction: discord.Interaction, value: str) -> Tracks:
+        try:
+            return Tracks(value)
+        except ValueError:
+            raise app_commands.TransformerError(value, self.type, self)
+
+
 class ConfirmView(discord.ui.View):
     """A confirmation view with Confirm/Cancel buttons."""
 
@@ -138,7 +157,7 @@ class Admin(commands.Cog):
     async def add_leaderboard(
         self,
         interaction: discord.Interaction,
-        track: Tracks,
+        track: app_commands.Transform[Tracks, TrackTransformer],
         classes: str,
         channel: discord.TextChannel,
         tod: str,
@@ -280,7 +299,7 @@ class Admin(commands.Cog):
 
     @group.command(name="remove_leaderboard")
     async def remove_leaderboard(
-        self, interaction: discord.Interaction, track: Tracks
+        self, interaction: discord.Interaction, track: app_commands.Transform[Tracks, TrackTransformer]
     ) -> None:
         """Remove a leaderboard and all associated lap times.
 
@@ -339,7 +358,7 @@ class Admin(commands.Cog):
     async def edit_leaderboard(
         self,
         interaction: discord.Interaction,
-        track: Tracks,
+        track: app_commands.Transform[Tracks, TrackTransformer],
         classes: Optional[str] = None,
         channel: Optional[discord.TextChannel] = None,
         show_technical: Optional[bool] = None,
@@ -643,7 +662,7 @@ class Admin(commands.Cog):
     async def server_info(
         self,
         interaction: discord.Interaction,
-        track: Tracks,
+        track: app_commands.Transform[Tracks, TrackTransformer],
         title: Optional[str] = None,
     ) -> None:
         """Display server settings for a configured leaderboard.
@@ -733,7 +752,7 @@ class Admin(commands.Cog):
 
     @group.command(name="clear_times")
     async def clear_times(
-        self, interaction: discord.Interaction, track: Tracks
+        self, interaction: discord.Interaction, track: app_commands.Transform[Tracks, TrackTransformer]
     ) -> None:
         """Clear all lap times for a track.
 
